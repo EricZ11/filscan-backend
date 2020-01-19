@@ -1,0 +1,874 @@
+syntax = "proto3";
+
+package filscanproto;
+
+import "google/protobuf/descriptor.proto";
+import "gitlab.forceup.in/dev-proto/common/common.proto";
+
+service FilscanTipset{
+    option (common.api_prefix) = "tipset";
+    //
+    rpc BlockByHeight (BlockByHeightReq) returns (BlockInfoResp) {};
+    //
+    rpc BlockByMiner (BlockByMinerReq) returns (BlockByMinerResp) {};
+    //
+    rpc BlockByCid (BlockByCidReq) returns (BlockInfoResp) {};
+    //
+    rpc TipSetTree (TipSetTreeReq) returns (TipSetTreeResp) {};
+
+    //    rpc TipsetList(ListReq) returns (TipsetListResq){};
+
+    rpc BlockConfirmCount(BlockByCidReq)returns (CountResq){};
+}
+
+service FilscanMessages{
+    option (common.api_prefix) = "messages";
+
+    rpc BlockMessages (BlockMessagesReq) returns (BlockMessagesResp) {};
+
+    rpc MessagesMethods (MessagesMethodsReq) returns (MethodsResp) {}; //通过block []cids (可选） 获取msgmethod 列表
+
+    rpc MessageDetails (MessageDetailsReq) returns (MessageDetailsResp) {};
+
+    rpc MessageByAddress (MessageByAddressReq) returns (MessageByAddressResp) {};
+}
+
+service FilscanPeer{
+    option (common.api_prefix) = "peer";
+
+    rpc PeerById (PeerIdReq) returns (PeerByIdResp) {};
+
+    rpc ActivePeerCount (common.Empty) returns (CountResq) {};
+
+    rpc PeerMap (common.Empty) returns (PeerMapResq) {};
+
+}
+
+service FilscanAccount{
+    option (common.api_prefix) = "account";
+
+    //    rpc WalletById (WalletByIdReq) returns (WalletByIdResp) {};
+
+    //    rpc MinerById (MinerByIdReq) returns (MinerByIdResp) {};
+
+    rpc ActorById (ActorByIdReq) returns (ActorByIdResp) {};
+
+    //    rpc AddressById (AddressByIdReq) returns (AddressByIdResp) {};
+
+    rpc AccountList(ListReq) returns (AccountResq){};
+
+    rpc WorkListByAddress(AddressReq) returns (AddressResq){};
+}
+
+// filscan backend
+service Filscan {
+    option (common.api_version) = "v0";
+    option (common.api_prefix) = "filscan";
+
+    rpc SearchIndex(SearchIndexReq) returns (SearchIndexResp) {};
+
+    rpc BaseInformation(common.Empty) returns (BaseInformationResp) {};
+
+    rpc BlocktimeGraphical (StartEndTimeReq) returns (BlocktimeGraphicalResp) {};
+
+    //    rpc TotalPowerGraphical (StartEndTimeReq) returns (TotalPowerGraphicalResp) {};
+
+    //Newly increased
+    rpc AvgBlockheaderSizeGraphical (StartEndTimeReq) returns (AvgBlockheaderSizeGraphicalResp) {};
+
+    //    rpc FILOutsanding (common.Empty)  returns (FILOutsandingResp) {};
+
+    rpc LatestBlock (LatestBlockReq) returns (LatestBlockResp) {};
+
+    rpc LatestMsg (LatestMsgReq) returns (LatestMsgResp) {};
+};
+
+service FilscanToken {
+    option (common.api_prefix) = "token";
+    rpc  FilNetworkBlockReward (FutureBlockRewardReq) returns (FutureBlockRewardResp) {};
+    rpc CumulativeBlockRewardsOverTime (CBROReq) returns (CBROResp) {};
+    rpc FilOutStanding(FilOutstandReq) returns (FiloutstandResp) {};
+    rpc  MinerRewards(MinerRewardsReq) returns (MinerRewardsResp){};
+}
+
+service FilscanMining {
+    option (common.api_prefix) = "mining";
+
+    rpc TopnPowerMiners (TopnPowerMinersReq) returns (TopnPowerMinerResp) {};
+    rpc MinerPowerAtTime (MinerPowerAtTimeReq) returns (MinerPowerAtTimeResp) {};
+    rpc MinerList(MinerListReq) returns (MinerListResp) {};
+    rpc ActiveStorageMinerCountAtTime (ActiveStorageMinerReq) returns (ActiveStorageMinerResp) {};
+    rpc MinerSearch(MinerSearchReq) returns (MinerSearchResp) {};
+    rpc TopnPowerIncreaseMiners(TopnPowerIncreaseMinersReq) returns (TopnPowerIncreaseMinersResp) {};
+    rpc TopnBlockMiners(TopnBlockMinersReq) returns (TopnBlockMinersResp) {};
+    //    rpc EvolutionTopMinersBlock (EvolutionTopMinersBlockReq) returns (EvolutionTopMinersBlockResp) {};
+    //    rpc StorageMiningConsensusDetail (StorageMiningConsensusDetailReq) returns (StorageMiningConsensusDetailResp) {};
+    rpc TotalPowerGraphical (TotalPowerGraphicalReq) returns (TotalPowerGraphicalResp) {};
+}
+
+message FutureBlockRewardReq {
+    uint64 time_diff = 2;
+    uint64 repeate = 3;
+}
+
+message FutureBlockRewardResp {
+    common.Result res = 1;
+    message Data {
+        uint64 time = 1;
+        string block_rewards = 2;
+        string vested_rewards = 3;
+    }
+    repeated Data data = 2;
+}
+
+message CBROReq {
+    uint64 time_start = 1;
+    uint64 time_diff = 2;
+    uint64 repeate = 3;
+}
+
+message CBROResp {
+    message Data {
+        uint64 time_start = 1;
+        uint64 time_end = 2;
+        uint64 miner_count = 3;
+        string blocks_reward = 4;
+    }
+    common.Result res = 1;
+    repeated Data data = 2;
+}
+
+message FilOutstandReq {
+    uint64 time_at = 1;
+    uint64 time_diff = 2;
+    uint64 repeate = 3;
+}
+
+message FiloutstandResp {
+    message Data {
+        uint64 time_start = 1;
+        uint64 time_end = 2;
+        string floating = 3;
+        string outstanding = 4;
+        string plege_collateral = 5;
+    }
+    common.Result res = 1;
+    repeated Data data = 2;
+}
+
+message Peer{
+    string peer_id = 1;
+    string miner_address =2;
+    string ip =3;
+    string location_cn =5;
+    string location_en =6;
+}
+
+message PeerIdReq{
+    string peer_id  =1 ;
+}
+
+message PeerByIdResp{
+    message Data {
+        Peer peer = 1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message AddressReq{
+    string address =1 ;
+}
+
+message AddressResq{
+    message Data {
+        repeated string address = 1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message WalletByIdReq{
+    string wallet_id =1 ;
+}
+
+message BlockByMinerReq{
+    repeated string miners =1;
+    int64 begindex = 2;
+    int64 count = 3;
+}
+
+message TipsetListResq{
+    message Data {
+        repeated TipSet tipsets = 1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+message AccountResq{
+    message Data {
+        repeated FilscanActor accounts = 1;
+        uint64 total = 2;
+        string total_fil =  3;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message  ListReq{
+    int64 begindex = 2;
+    int64 count = 3;
+}
+
+message StartEndTimeReq{
+    int64 start_time =1 ;
+    int64 end_time =2;
+}
+
+message WalletByIdResp{
+    message Data {
+        FilscanActor data = 1 ;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message MessageByAddressReq{
+    string address =1;
+    int64 begindex = 2;
+    int64 count = 3;
+    string method =  4;  //allow value="" search ALL
+    string from_to = 5;  //allow value="" search ALL   from or to
+}
+
+message MessageByAddressResp{
+    message Data {
+        repeated FilscanMessage data = 1;
+        int64 total = 2;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message AddressByIdReq{
+    string address =1 ;
+}
+
+message AddressByIdResp{
+    message Data {
+        repeated FilscanActor actor = 1;
+        repeated FilscanActor wallet =2;
+        repeated FilscanMiner miner =3;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message MinerByIdReq{
+    string miner_id =1 ;
+}
+
+message MinerByIdResp{
+    message Data {
+        FilscanMiner data = 1 ;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message ActorByIdReq{
+    string actor_id =1 ;
+}
+
+message ActorByIdResp{
+    message Data {
+        FilscanActor data = 1 ;
+        repeated string work_list = 2;
+        FilscanMiner miner = 3;
+
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message BlockMessagesReq{
+    string block_cid = 1; //allow value="" search ALL
+    int64 begindex = 2;
+    int64 count = 3;
+    string method = 4;    //allow value="" search ALL
+}
+
+message BlockMessagesResp{
+    message Data {
+        repeated FilscanMessage msgs =1;
+        int64 total =2;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message MessageDetailsReq{
+    string msg_cid = 1;
+}
+
+message MessageDetailsResp{
+    message Data {
+        FilscanMessage msg =1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message MethodsResp{
+    message Data {
+        repeated string method = 1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message MessagesMethodsReq{
+    repeated string cids = 1;
+}
+
+message ActiveStorageMinerReq {
+    uint64 time_at = 1;
+    uint64 time_diff = 2;
+    uint64 repeate_time =3;
+}
+
+
+
+message ActiveStorageMinerResp {
+    common.Result res = 1;
+    message Data {
+        uint64 count = 1;
+        uint64 time_at = 2;
+    }
+    repeated Data data = 2;
+}
+
+message StorageMiningConsensusDetailReq {
+    string  time_interval = 1; // 24h 1w 1m...
+    string key = 2;     //search key
+    string order_by = 3; //Storage Power、Proven Storage 、 % of Blocks Mined
+    int64 sort = 4;     //1:asc  -1:desc
+    int64 begindex = 5;
+    int64 count = 6;
+}
+
+message StorageMiningConsensusDetailResp {
+    message Data {
+        repeated Table tables = 1;
+        int64 total = 2;
+    }
+    message Table {
+        string miner = 1;
+        string peer_id = 2;
+        string storage_power = 3;
+        string proven_storage = 4;
+        string last_block = 5;
+        string last_seen = 6;
+        string blocks = 7;
+        string block_percent  = 8;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message MinerState {
+    string address = 1;
+    string power = 2;
+    string power_percent = 3;
+    string peer_id = 4;
+}
+
+message TopnPowerMinersReq {
+    uint64 offset = 1;
+    uint64 limit = 2;
+    uint64 time_at = 3;
+}
+
+message TopnPowerMinerResp {
+    common.Result res = 1;
+    message Data {
+        uint64 total_miner_count = 1;
+        repeated MinerState miners = 2;
+    }
+    Data data = 2;
+}
+
+message TopnPowerIncreaseMinersReq {
+    uint64 time_start = 1;
+    uint64 time_at = 2;
+    uint64 offset = 3;
+    uint64 limit = 4;
+}
+
+message TopnPowerIncreaseMinersResp {
+    common.Result res = 1;
+    message Response {
+        message Record {
+            uint64 increased_power = 1;
+            uint64 block_count = 2;
+            string block_percent = 3;
+            string increased_power_percent = 4;
+            MinerState miner = 5;
+        }
+        uint64 total_miner_count = 2;
+        uint64 total_increased_power = 3;
+        uint64 total_block_count = 4;
+        repeated Record records = 5;
+    };
+    Response data = 2;
+}
+
+message TopnBlockMinersReq {
+    uint64 time_start = 1;
+    uint64 time_at = 2;
+    uint64 offset = 3;
+    uint64 limit = 4;
+}
+
+message TopnBlockMinersResp {
+    common.Result res = 1;
+    message Response {
+        message Record {
+            uint64 time_at = 1;
+            uint64 block_count = 2;
+            string block_percent = 3;
+            uint64 increased_power = 4;
+            string increased_power_percent = 5;
+            MinerState miner = 6;
+        }
+        uint64 total_block_count = 1;
+        uint64 total_miner_count = 2;
+        uint64 total_increased_power = 4;
+        repeated Record records = 5;
+    };
+    Response data = 2;
+}
+
+message MinerPowerAtTimeReq {
+    repeated string miners = 1;
+    uint64 time_at = 2;
+    uint64 time_diff = 3;
+    uint64 repeate_time = 4;
+}
+
+message MinerPowerAtTimeResp {
+    common.Result res = 1;
+    message X {
+        uint64 at_time = 1;
+        MinerState miner_states = 2;
+    }
+    message Resdata {
+        repeated X data = 1;
+    }
+    map<string, Resdata> data = 2;
+}
+
+message MinersPower{
+    string miner = 1;
+    string storage_power = 2;
+    string proven_storage = 3;
+    int64 time =4;
+}
+
+message MinersBlock{
+    string miner = 1;
+    string block_num = 2;
+    //    string block_percent = 3;
+    int64 time =4;
+}
+
+message BlockByHeightReq{
+    uint64 height = 1;
+}
+
+message BlockByCidReq{
+    string cid = 2;
+}
+
+message CountResq{
+    //repeated Relation relations = 2;
+    message Data {
+        string count = 1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message PeerPoint {
+    string location_cn =1;
+    string location_en =2;
+    repeated PeerIdIp peers =3;
+    double longitude =4;
+    double latitude =5;
+
+    message PeerIdIp {
+        string peer_id = 1;
+        string ip =3;
+    }
+}
+
+message PeerMapResq{
+    //repeated Relation relations = 2;
+    message Data {
+        repeated PeerPoint peer_point = 1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message TipSetTreeReq{
+    int64 count = 1;
+    int64 end_height = 2;
+}
+
+message TipSetTreeResp{
+    //repeated Relation relations = 2;
+    message Data {
+        repeated TipSet tipsets = 1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message BlockInfoResp{
+    message Data {
+        repeated FilscanBlock blocks = 1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+message BlockByMinerResp{
+    message Data {
+        repeated FilscanBlock blocks = 1;
+        int64 total =2;
+    }
+    common.Result res = 1;
+    Data data = 2;
+}
+
+message TipSet{
+    repeated FilscanBlock tipset = 1;
+    string min_ticket_block = 2;
+}
+
+//message Account{
+//    string address =1;
+//    Actor actor = 2;
+//    bool is_storage_miner = 3;
+//    bool is_owner = 4;
+//    bool is_miner =5;
+//    bool is_wallet =6;
+//
+//    uint64 Messages = 7;
+//}
+
+message Actor{
+    string code =1;
+    string head=2;
+    uint64 nonce=3;
+    string Balance =4;
+}
+
+message Relation{
+    string block_cid = 1;
+    string parent_cid = 2;
+}
+
+message BlockHeader{
+    string miner =1;
+
+    //    repeated string tickets = 2;
+    string tickets = 2;
+
+    string electionProof = 3;
+
+    repeated string parents = 4;
+
+    string parent_weight = 5;
+
+    int64 height = 6;
+
+    string parent_state_root = 7;
+
+    string parent_message_receipts = 8;
+
+    string messages = 9;
+
+    Signature  bls_aggregate =10;
+
+    int64 timestamp = 11 ;
+
+    Signature  block_sig =12;
+
+}
+
+message FilscanBlock{
+    BlockHeader block_header= 1;
+    string cid = 2;
+    //    int64 weight = 3;
+    int64 size = 4;
+    repeated string msg_cids=5 ;
+    double reward =6;
+
+}
+
+message Message{
+    string to  =1;
+    string from =2;
+    uint64 nonce=3;
+    string value =4;
+    string gasprice =5;
+    string gaslimit =6 ;
+    string  method =7;
+    string params = 8;
+}
+
+message FilscanMessage{
+    Message msg= 1;
+    string cid = 2;
+    int64 size = 3;
+    int64 msgcreate =4;
+    uint64 height = 5;
+    string block_cid = 6;
+    string exit_code = 7;
+    string return = 8;
+    string gas_used = 9;
+    string method_name = 10;
+}
+
+message Signature {
+    string type =1;
+    string data =2;
+}
+
+message LatestBlockReq {
+    int64 num = 1;
+};
+
+message LatestMsgReq {
+    int64 num = 1;
+};
+
+message LatestBlockResp {
+    message Data {
+        repeated FilscanBlock block_header= 1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+};
+message LatestMsgResp {
+    message Data {
+        //      Message msg= 1;
+        repeated  FilscanMessage msg= 1;
+    }
+    common.Result res = 1;
+    Data data = 2;
+};
+
+message SearchIndexReq {
+    string key = 1;
+    int64 filter=2; // 1-address , 2-message_ID , 3-Height , 4-block_hash , 5-peer_id
+};
+
+message FilscanActor{
+    //    string code =1;
+    //	string head =2;
+    //	string nonce =3;
+    //    double balance = 4;
+    string address =1;
+    Actor actor = 2;
+    bool is_storage_miner = 3;
+    bool is_owner = 4;
+    bool is_miner =5;
+    bool is_wallet =6;
+
+    uint64 Messages = 7;
+}
+message FilscanMiner{
+    //    FilscanActor actor= 1;
+    string owner_address = 1;
+    string peer_id = 2;
+    uint64 sector_size = 3;
+    int64 power = 4;
+    uint64 sector_num = 5;
+    int64 proving_sector_num = 6;
+    int64 fault_num = 7;
+}
+
+
+message SearchIndexResp {
+    message Data {
+        //        repeated FilscanBlock blocks = 1;
+        //        repeated FilscanMessage msgs = 2;
+        //        repeated FilscanActor actor = 3;
+        //        repeated FilscanActor wallet =4;
+        //        repeated FilscanMiner miner =5;
+        string model_flag = 1;  // actor ,message_ID ,Height , block_hash , peer_id
+
+    }
+    common.Result res = 1;
+    Data data = 2;
+};
+
+message BaseInformationResp {
+    message Data {
+        uint64 tipset_height = 1;
+        //        int64 last_blocktime = 2;
+        //        int64 blocks_tipset = 3;
+        //        int64 block_size = 4;
+        double block_reward = 5;
+        //        int64 total_power = 6;
+        double avg_message_size = 7;
+        //        int64 avg_blockheader_size = 8;
+        double avg_gas_price = 9;
+        double avg_messages_tipset = 10;
+        //        int64 avg_blocktime = 11;
+        string pledge_collateral = 12;
+    }
+    common.Result res = 1;
+    Data data = 2;
+};
+
+message BlocktimeGraphicalResp {
+    message Data {
+        repeated Blocktime data =2;
+        string avg_blocktime  = 1;
+        string min  = 3;
+        string max  = 4;
+    }
+    common.Result res = 1;
+    Data data = 2;
+};
+
+message AvgBlockheaderSizeGraphicalResp {
+    message Data {
+        repeated Blocksize data =2;
+        double avg_blocksize  = 1;
+        double min  = 3;
+        double max  = 4;
+    }
+    common.Result res = 1;
+    Data data = 2;
+};
+
+message TotalPowerGraphicalResp {
+    message Data {
+        repeated TotalPowerGraphical data = 1;
+        double storage_capacity =2;
+    }
+    common.Result res = 1;
+    Data data = 2;
+};
+
+message TotalPowerGraphical{
+    int64 time = 1;
+    int64 power = 2;
+}
+message TotalPowerGraphicalReq{
+    int64 time = 1;
+}
+
+message FILOutsandingResp {
+    message Data {
+        repeated TotalPower data = 2;
+        float floating = 3 ;
+        float pledge_collateral = 1;
+        float outstanding = 4;
+    }
+    common.Result res = 1;
+    Data data = 2;
+};
+
+message Blocktime {
+    int64 time = 1;
+    string block_time = 2;
+}
+message Blocksize {
+    int64 time = 1;
+    double block_size = 2;
+}
+
+message TotalPower {
+    int64 time = 1;
+    float floating = 2;
+    float pledge_collateral = 3;
+    float outstanding = 4;
+}
+
+message MinerSearchReq {
+    string miner = 1;
+}
+
+message MinerSearchResp {
+    common.Result res = 1;
+    message Response {
+        uint64 miner_count = 1;
+        repeated MinerInfo miners = 2;
+    }
+    Response data = 2;
+}
+
+message MinerListReq {
+    uint64 time_start = 1;
+    uint64 time_end = 2;
+    string sort = 3;
+    int64 sort_type = 4;
+    uint64 offset = 5;
+    uint64 limit = 6;
+}
+
+message MinerInfo {
+    string increased_power = 1;
+    uint64 increased_block = 2;
+    string power_percent = 3;
+    string block_percent = 4;
+    string mining_efficiency = 5;
+    string storage_rate = 6;
+    string miner = 7;
+    string peer_id = 8;
+}
+
+message MinerListResp {
+    common.Result res = 1;
+    message Data {
+        string total_increased_power = 1;
+        uint64 total_increased_block = 2;
+        uint64 mienr_count = 3;
+        repeated MinerInfo miners = 4;
+        string sort_type = 5;
+    }
+    Data data = 2;
+}
+
+message MinerRewardsReq {
+    uint64 time_start = 1;
+    uint64 time_diff = 2;
+    uint64 height_start = 3;
+    uint64 height_count = 4;
+    repeated string miners = 5;
+    repeated string workers = 6;
+}
+
+message MinerRewards {
+    string miner = 1;
+    string woker = 2;
+    float total_rewards = 3;
+    message Item {
+        uint64 height = 1;
+        float rewards = 2;
+    }
+    repeated Item items = 4;
+}
+
+message MinerRewardsResp {
+    common.Result res = 1;
+    message Data {
+        map<string, MinerRewards> miner_rewards = 1;
+    }
+    Data data = 2;
+}
