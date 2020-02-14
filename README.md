@@ -1,72 +1,221 @@
+# Overview
 
-# Filscan User Guide
+Filscan is a blockchain browser for Filecoin, which can be used to view Filecoin blockchain data, including querying addresses, messages information, block heights, miner information, token information, etc.
 
-# Introduction
-## Filscan 
-Filscan is a blockchain browser for Filecoin, which can be used to view Filecoin blockchain data, including querying addresses, messages information, block heights, miner information,  token information, etc.
-       
+# Table of Contents
+- [Overview](#overview)
+- [Table of Contents](#table-of-contents)
+- [Front-End](#front-end)
+  - [Recommended Browser](#recommended-browser)
+  - [User Guide](#user-guide)
+    - [Comments](#comments)
+    - [Site Map](#site-map)
+    - [Home Page](#home-page)
+    - [Tipset Page](#tipset-page)
+    - [Mining Page](#mining-page)
+    - [Token Metrics](#token-metrics)
+    - [Peer Map](#peer-map)
+  - [Install](#install)
+    - [Environmental requirements](#environmental-requirements)
+    - [Install Dependencies](#install-dependencies)
+    - [Compiles and hot-reloads for development](#compiles-and-hot-reloads-for-development)
+    - [API Environment Configuration](#api-environment-configuration)
+    - [Build](#build)
+    - [Lints and fixes files](#lints-and-fixes-files)
+    - [Customize configuration](#customize-configuration)
+- [Back-End](#back-end)
+  - [Build and Install](#build-and-install)
+    - [Environment](#environment)
+    - [System Require](#system-require)
+    - [Build](#build-1)
+    - [Configuration](#configuration)
+    - [Run](#run)
+  - [API Document](#api-document)
 
-# View & Query
-## Main Page
-By default, the Filscan Web interface opens to home page. You can look up latest network information for Filecoin Blockchain, include network indicate, the latest block&message,BlockChain structure chart and so on.
--Search box: It is convenient for users to query blockchain data.
--Navigation: secondary title display, click the corresponding navigation to enter the page.
--Network indicators: Show the latest network status indicators across the entire network.
+# Front-End
 
-- The latest Blocks：Display the latest block information.
-- The latest Messages：Display the latest message generated.
-- BlockChain structure chart：Demonstrate the chain structure of the Filecoin.
+## Recommended Browser
 
-## Information Query
-User can querying the specified address, Tipset height, Block hash, Message ID, Peer ID,  in the search box  and it will jump to the details page.
+For the best experience with the Filscan, we recommend that use the latest version of a browser from this list:
 
-### Address Query
-Actor List:
-- account: General Account
-- account(owner): Account who has worker
-- StorageMiner: Contract Account       
+•       Microsoft Edge
 
-For different roles, different detail pages will appear.
+•       Mozilla Firefox
 
-### Tipset height Query
-Input the height of Tipset to enter the detail information page, which shows the following information:
--Chain structure with highly visible targets
--Click other heights to switch to detailed information for different heights
--Blocks at the same height
+•       Google Chrome/Chromium
 
-### Block Hash Query
-Input Block Hash in the search bar to enter the block details page. The page displays block details.
+•       Apple Safari
 
-### Message ID Query
-In message details page, the page displays the corresponding message details.
+## User Guide
 
-### Peer ID Query
-Peer ID details page, the page displays the details of the corresponding Peer.
+### Comments
 
-## View All Tipset Height
-Enter the Tipset page, the page will shows all height Tipset record list and block information. The page displays the following information:
--Filecoin chain structure
--Click the height to switch to the detail page for the corresponding height
--Block record of the entire height of the network
+**Active Miner:** the active miner is the miner that has made sector in the last 24 hours.
 
-## View All Message Record
-Enter the all Messages page, the page displays the records and detailed information of all Messages.
+**Active Peer:** the active peer is the node that has sent messages in the last 24 hours.
 
-## View All Address Information
-Enter the all Accounts page, which displays the records and details of all account addresses.
-The addresses are arranged in reverse order of the balance value. Click the address to enter the account details page.
+### Site Map
 
-## Mining Information
-In Mining view, the page displays Filecoin network absenteeism rankings and mining information.
-### Active Miners
-The chart shows the number of active miners.
-### Chart of Top Miners for Proven Power
-The chart shows the evolution of the miner's storage power.
-### Miner list
-The list shows the power and blocks mined information of the miners, which can be sorted.
+<p align="center">
+  <img width="100%" style="max-width:1200px" hspace="10" border="2" src="img/site-map.png">
+</p>
 
-## Token Information
-In Token Metrics view, the page displays block rewards and pledged quantities of FIL tokens.
+### Home Page
 
-## Node Location View
-In Peer Map view, it shows the node location in the world map.
+<p align="center">
+  <img width="100%" style="max-width:1200px" hspace="10" border="2" src="img/home-page.png">
+</p>
+
+You will get the latest chain status of Filecoin Blockchain, include the latest block&message table, the Tipset chain chart.
+
+**Search Bar:**
+
+It is convenient for users to query the blockchain data. User can query detail information about Address, Tipset Height, Block Hash, Message ID, Peer Id by search bar.
+
+**Navigation Bar:**
+
+It is an easy way to access the page you are interested in.
+
+**Chain status:**
+
+Shows the latest chain status.
+
+**The latest Blocks & Messages:**
+
+Shows the latest Blocks info & messages on chain.
+
+**BlockChain structure chart:**
+
+Shows the chain structure of the Filecoin.
+
+### Tipset Page
+
+<p align="center">
+  <img width="100%" style="max-width:1200px" hspace="10" border="2" src="img/tipset-page.png">
+</p>
+
+In this page user will see the chain struct and if click the block in the tipset, the block detail info will appear.
+
+### Mining Page
+
+**Active Storage Miners:**
+
+The chart shows the count of active miners in different periods.
+
+**Evolution of Top Miners for Miners For Proven Power:**
+
+<p align="center">
+  <img width="100%" style="max-width:1200px" hspace="10" border="2" src="img/mining-page.png">
+</p>
+
+The chart shows the Proven power of the top miners in different time periods.
+
+**Miner List**
+
+<p align="center">
+  <img width="100%" style="max-width:1200px" hspace="10" border="2" src="img/miner-list.png">
+</p>
+
+the table shows some miner key info, some of columns can be sorted. User can choose periods to show different data.
+
+### Token Metrics
+
+<p align="center">
+  <img width="100%" style="max-width:1200px" hspace="10" border="2" src="img/token-Metrics.png">
+</p>
+
+The page displays the block reward and pledged amount of FIL tokens.
+
+### Peer Map
+
+<p align="center">
+  <img width="100%" style="max-width:1200px" hspace="10" border="2" src="img/peer-map.png">
+</p>
+
+This page shows the peer’s location on the map.
+
+## Install
+
+### Environmental requirements
+
+- required: Node.js(https://nodejs.org/en/)
+
+- optional : Yarn (https://yarnpkg.com/)
+
+### Install Dependencies
+```
+yarn install or npm install 
+```
+### Compiles and hot-reloads for development
+```
+yarn serve or npm run serve
+```
+### API Environment Configuration
+
+By default, the profiles are in the root directory of the project. You can modify the value of **VUE_APP_BASE_URL** to change the server address.
+
+**Example:**
+
+If you want to change the server address, you can open the file .env.development. Then you will see the default value of **VUE_APP_BASE_URL** is "http://192.168.1.2:8700/v0/filscan", modify it according to your actual server address. Please notice that you should run "yarn serve" or "npm run serve" to apply this change.
+
+### Build
+```
+yarn build:pro or npm run build:pro
+```
+### Lints and fixes files
+```
+yarn lint or npm run lint
+```
+### Customize configuration
+
+See Configuration Reference(https://cli.vuejs.org/config/).
+
+# Back-End
+
+## Build and Install
+
+### Environment
+
+- golang >= v1.13
+- mongo >= v4.2
+- lotus >= v0.2.7
+
+### System Require
+
+- Linux or Mac OS
+
+### Build
+```
+git clone (githuburl)
+
+cd Backend
+
+make build-lotus
+
+go build
+```
+### Configuration
+
+Edit app.conf in path /conf and set the correct parameter
+```
+mongoHost = "127.0.0.1:27017"
+
+mongoUser = "root"
+
+mongoPass = "admin"
+
+mongoDB   = "filscan"
+
+lotusGetWay="192.168.1.1:1234"
+```
+### Run
+
+Make sure mongo and lotus is active, and run the filscan_lotus
+```
+./filscan_lotus
+```
+The application will check lotus and mongo’s status. The application will stop if got any error from them. If application start success, it will work until sync all data down from lotus. 
+
+## API Document
+
+Check document [here](Filscan_Interface_v1.0.md)
