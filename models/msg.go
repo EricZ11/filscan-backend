@@ -12,13 +12,14 @@ import (
 )
 
 const (
-	MsgCollection = "msg"
+	MsgCollection = "Msg"
 )
 
 type FilscanMsg struct {
 	Message       types.Message `bson:"message" json:"message"`
 	Cid           string        `bson:"cid" json:"cid"`
 	BlockCid      string        `bson:"block_cid" json:"block_cid"`
+	ActorName     string        `bson:"actor_name" json:"actor_name"`
 	MethodName    string        `bson:"method_name" json:"method_name"`
 	ExitCode      string        `bson:"exit_code" json:"exit_code"` //默认值 不应为 0
 	Return        string        `bson:"return" json:"return"`
@@ -59,14 +60,14 @@ type FilscanResMsgMessage struct {
 }
 
 /**
-db.msg.ensureIndex({"message.Method":1})
-db.msg.ensureIndex({"cid":1},{"unique":true})
-db.msg.ensureIndex({"message.From":1})
-db.msg.ensureIndex({"message.To":1})
-db.msg.ensureIndex({"block_cid":1})
-db.msg.ensureIndex({"msg_create":-1})
-db.msg.ensureIndex({"method_name":-1})
-db.msg.ensureIndex({"message.From":1,"message.To":1})
+db.Msg.ensureIndex({"message.Method":1})
+db.Msg.ensureIndex({"cid":1},{"unique":true})
+db.Msg.ensureIndex({"message.From":1})
+db.Msg.ensureIndex({"message.To":1})
+db.Msg.ensureIndex({"block_cid":1})
+db.Msg.ensureIndex({"msg_create":-1})
+db.Msg.ensureIndex({"method_name":-1})
+db.Msg.ensureIndex({"message.From":1,"message.To":1})
 */
 func Create_msg_index() {
 	ms, c := Connect(MsgCollection)
@@ -120,7 +121,7 @@ func UpsertFilscanMsgMulti(m []*FilscanMsg) error {
 		upsert_pairs[key*2] = q
 		upsert_pairs[key*2+1] = p
 	}
-	_, err := BulkUpsert(MsgCollection, upsert_pairs)
+	_, err := BulkUpsert(nil, MsgCollection, upsert_pairs)
 	if err != nil {
 		fmt.Sprintf("InsertFilscanMsgMulti BulkUpdate err = %v", err.Error())
 	}
@@ -197,7 +198,8 @@ func GetMsgByAddressFromMethodLimit(address, fromTo, methodName string, begindex
 		//q = bson.M{"message.Method":method}
 	}
 	if count > 0 {
-		err = FindAllLimit(MsgCollection, q, nil, &res, begindex, count)
+		//err = FindAllLimit(MsgCollection, q, nil, &res, begindex, count)
+		err = FindSortLimit(MsgCollection, "-msg_create", q, nil, &res, begindex, count)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -440,7 +442,7 @@ func UpdateMsgReceipts(msg []api.Message, msgReceipt []*types.MessageReceipt, lo
 	if err != nil {
 		fmt.Sprintf("BulkUpdate err = %v", err.Error())
 	}
-	//}(msg, msgReceipt,loop)
+	//}(Msg, msgReceipt,loop)
 }
 
 func GetDistinctFromAddressByTime(startTime, endTime int64) (res []string, err error) {

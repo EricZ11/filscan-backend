@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"filscan_lotus/controllers"
-	"filscan_lotus/controllers/filscaner"
+	"filscan_lotus/filscaner"
 	lotus_filscan "filscan_lotus/filscanproto"
 	"fmt"
 	"github.com/astaxie/beego/config"
@@ -77,7 +77,9 @@ func main() {
 	// 将 rootMux 中携带的接口, 中间件, 子组等封装成 http.HandlerFunc 并注册到 http.ServeMux 上
 	jsonrpc.RegisterMux(httpMux, rootMux)
 
-	iniconf, err := config.NewConfig("ini", "conf/app.conf")
+	config_file := "conf/app.conf"
+
+	iniconf, err := config.NewConfig("ini", config_file)
 	// iniconf, err := config.NewConfig("ini", "conf/local.app.conf")
 	if err != nil {
 		panic(err)
@@ -93,17 +95,20 @@ func main() {
 		Handler: httpMux,
 	}
 	controllers.Firstinit() //初始化
-
-	if err := filscaner.Init(context.TODO(), controllers.LotusApi); err != nil {
+	if err := filscaner.Init(context.TODO(), config_file, controllers.LotusApi); err != nil {
 		panic(err)
 	}
+	controllers.SetFilscaner(filscaner)
 	filscaner.Run()
 	controllers.Run() //SynLotus
 
+	Logger.Info(fmt.Sprintf("server will listen %s:%s", listenAdd, httpport))
 	// 开始监听并想向外提供服务
 	if err := httpServer.ListenAndServe(); err != nil {
 		Logger.Errorf("http server listen and serve error, cause=%v", err)
 	}
-	// 日志
-	Logger.Info(fmt.Sprintf("server will listen %s:%s", listenAdd, httpport))
+
+	// todo: need a stop method...
+	// filscaner.Stop()
+
 }

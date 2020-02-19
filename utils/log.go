@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+	// "github.com/zl03jsj/log4go"
 )
-
 
 var file *os.File
 var mutx sync.Mutex

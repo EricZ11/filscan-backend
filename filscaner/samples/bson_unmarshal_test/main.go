@@ -3,32 +3,33 @@ package main
 import (
 	"fmt"
 	"github.com/filecoin-project/go-address"
+	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	"math/big"
-	"github.com/globalsign/mgo"
 )
 
 var printf = fmt.Printf
-type MyBigint struct { *big.Int }
+
+type MyBigint struct{ *big.Int }
 
 func NewMyBigint(i int64) *MyBigint {
 	return &MyBigint{
-		Int:big.NewInt(i),
+		Int: big.NewInt(i),
 	}
 }
 
-func (mbig *MyBigint)GetBSON() (interface{}, error) {
+func (mbig *MyBigint) GetBSON() (interface{}, error) {
 	fmt.Printf("get bosn return string:%s\n", mbig.String())
 	return mbig.String(), nil
 }
 
-func (mbig *MyBigint)SetBSON(raw bson.Raw) error {
+func (mbig *MyBigint) SetBSON(raw bson.Raw) error {
 	var num string
-	if err:=raw.Unmarshal(&num); err!=nil {
+	if err := raw.Unmarshal(&num); err != nil {
 		return err
 	}
 
-	if mbig.Int==nil {
+	if mbig.Int == nil {
 		mbig.Int = big.NewInt(0)
 	}
 
@@ -40,11 +41,11 @@ func (mbig *MyBigint)SetBSON(raw bson.Raw) error {
 
 type LargeNubmerSturct struct {
 	Bigint *MyBigint
-	Name string
+	Name   string
 }
 
 func main() {
-	if addr, err := address.NewFromString("t01346"); err!=nil {
+	if addr, err := address.NewFromString("t01346"); err != nil {
 		fmt.Printf("not a miner address:%s\n", err.Error())
 	} else {
 		fmt.Printf("address:%s\n", addr)
@@ -63,7 +64,7 @@ func main() {
 		Name:   "zl",
 	}
 
-	if _, err := c.Upsert(nil, largenumber); err!=nil {
+	if _, err := c.Upsert(nil, largenumber); err != nil {
 		fmt.Printf("err message:%s\n", err.Error())
 	}
 

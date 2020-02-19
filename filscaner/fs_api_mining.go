@@ -6,6 +6,7 @@ import (
 	innererr "filscan_lotus/error"
 	. "filscan_lotus/filscanproto"
 	"filscan_lotus/models"
+	"filscan_lotus/utils"
 	"fmt"
 	"github.com/globalsign/mgo"
 	"gitlab.forceup.in/dev-proto/common"
@@ -31,8 +32,8 @@ func (fs *Filscaner) MinerList(ctx context.Context, req *MinerListReq) (*MinerLi
 	end := req.TimeEnd
 	now := uint64(time.Now().Unix())
 
-	if start < fs.chain_genisis_time {
-		start = fs.chain_genisis_time
+	if start < fs.chain_genesis_time {
+		start = fs.chain_genesis_time
 	}
 	if end > now {
 		end = now
@@ -119,8 +120,8 @@ func (fs *Filscaner) TopnPowerIncreaseMiners(ctx context.Context, req *TopnPower
 	for index, record := range records {
 		data.Records[index] = &TopnPowerIncreaseMinersResp_Response_Record{
 			IncreasedPower:        record.IncreasedPower,
-			Miner:                 fs.to_resp_miner(record.Record),
-			IncreasedPowerPercent: IntToPercent(record.IncreasedPower, total_increased_power)}
+			Miner:                 record.Record.State(),
+			IncreasedPowerPercent: utils.IntToPercent(record.IncreasedPower, total_increased_power)}
 		miners[index] = record.Record.MinerAddr
 	}
 	data.TotalIncreasedPower = total_increased_power
@@ -160,7 +161,7 @@ func (fs *Filscaner) TopnBlockMiners(ctx context.Context, req *TopnBlockMinersRe
 		miners[index] = m.Miner
 	}
 
-	miner_power_increased, err := fs.get_miner_power_increased_within_time_range(miners, req.TimeStart, req.TimeAt)
+	miner_power_increased, err := fs.models_miner_power_increase_in_time(miners, req.TimeStart, req.TimeAt)
 	if err != nil {
 		resp.Res = resp_search_error
 		return resp, nil
@@ -182,7 +183,7 @@ func (fs *Filscaner) TopnBlockMiners(ctx context.Context, req *TopnBlockMinersRe
 		var minerstate *MinerState
 
 		if increased_power_miner != nil {
-			minerstate = fs.to_resp_miner(increased_power_miner.Record)
+			minerstate = increased_power_miner.Record.State()
 		}
 
 		if minerstate == nil {
@@ -199,8 +200,8 @@ func (fs *Filscaner) TopnBlockMiners(ctx context.Context, req *TopnBlockMinersRe
 	}
 
 	for _, record := range data.Records {
-		record.IncreasedPowerPercent = IntToPercent(record.IncreasedPower, data.TotalIncreasedPower)
-		record.BlockPercent = IntToPercent(record.BlockCount, data.TotalBlockCount)
+		record.IncreasedPowerPercent = utils.IntToPercent(record.IncreasedPower, data.TotalIncreasedPower)
+		record.BlockPercent = utils.IntToPercent(record.BlockCount, data.TotalBlockCount)
 	}
 
 	resp.Data = data
@@ -217,14 +218,32 @@ func (fs *Filscaner) TopnPowerMiners(ctx context.Context, req *TopnPowerMinersRe
 		Data: &TopnPowerMinerResp_Data{},
 	}
 
-	time_at := req.TimeAt
-	if time_at == 0 {
-		time_at = uint64(time.Now().Unix())
+	resp.Data.Miners, _ = fs.miner_cache24h.index(0)
+	resp.Res = resp_success
+
+	resp.Data.TotalMinerCount = uint64(len(resp.Data.Miners))
+
+	return resp, nil
+}
+
+func (fs *Filscaner) TopnPowerMiners_old(ctx context.Context, req *TopnPowerMinersReq) (*TopnPowerMinerResp, error) {
+	if req.Limit == 0 {
+		return nil, innererr.ErrInvalidParam
 	}
 
-	miners, total, err := fs.get_miner_topn_power(time_at, req.Offset, req.Limit)
+	resp := &TopnPowerMinerResp{
+		Res:  common.NewResult(3, "success"),
+		Data: &TopnPowerMinerResp_Data{},
+	}
+
+	time_at := int64(req.TimeAt)
+	if time_at == 0 {
+		time_at = time.Now().Unix()
+	}
+
+	miners, total, err := models_miner_top_power(nil, time_at, int64(req.Offset), int64(req.Limit))
 	if err != nil {
-		fs.Printf("get_miner_topn_power error, message:%s\n", err.Error())
+		fs.Printf("models_miner_top_power error, message:%s\n", err.Error())
 		resp.Res = resp_search_error
 		return resp, nil
 	}
@@ -283,21 +302,79 @@ func (fs *Filscaner) MinerSearch(ctx context.Context, req *MinerSearchReq) (*Min
 }
 
 func (fs *Filscaner) MinerPowerAtTime(ctx context.Context, req *MinerPowerAtTimeReq) (*MinerPowerAtTimeResp, error) {
+	resp := &MinerPowerAtTimeResp{
+		Res:  common.NewResult(3, "success"),
+		Data: make(map[string]*MinerPowerAtTimeResp_Resdata),
+	}
+
+	res_datas := resp.Data
+
+	time_diff := req.TimeDiff
+
+	time_at := req.TimeAt
+	time_tmp := time_at
+
+	var cache *fs_miner_cache
+	if time_diff == 3600 {
+		cache = fs.miner_cache24h
+	} else if time_diff == 86400 {
+		cache = fs.miner_cache1day
+	} else {
+		resp.Res = common.NewResult(4, fmt.Sprintf("invalid time_duration:%d", time_diff))
+	}
+
+	repeats := int(utils.Min(int64(req.RepeateTime), cache.max_cached_size))
+
+	for i := 0; i < repeats; i++ {
+		// is_nil 为true表示所有的数据都是伪造的
+		stats, is_nil := cache.index(i)
+		if stats == nil {
+			break
+		}
+		for _, stat := range stats {
+			res_data := res_datas[stat.Address]
+			if res_data == nil {
+				res_data = &MinerPowerAtTimeResp_Resdata{}
+				res_datas[stat.Address] = res_data
+			}
+			x := &MinerPowerAtTimeResp_X{
+				AtTime:      time_tmp,
+				MinerStates: stat}
+			res_data.Data = append(res_data.Data, x)
+		}
+
+		time_tmp = time_at - (time_at % time_diff) - (uint64(i) * time_diff)
+		if is_nil {
+			break
+		}
+	}
+
+	return resp, nil
+}
+
+func (fs *Filscaner) MinerPowerAtTime_old(ctx context.Context, req *MinerPowerAtTimeReq) (*MinerPowerAtTimeResp, error) {
 
 	if req.RepeateTime > 256 {
 		return nil, errors.New("repeate must time less than 36")
 	}
 
-	var time_at = uint64(req.TimeAt)
+	var time_at = req.TimeAt
 	if time_at == 0 {
 		time_at = uint64(time.Now().Unix())
 	}
+
 	resp := &MinerPowerAtTimeResp{
 		Res:  common.NewResult(3, "success"),
 		Data: map[string]*MinerPowerAtTimeResp_Resdata{},
 	}
+
 	for i := uint64(0); i < req.RepeateTime && time_at > 0; i++ {
-		minerStates, err := fs.get_miner_power_increased_within_time_range(req.Miners, 0, time_at)
+
+		func_begin := time.Now()
+		minerStates, err := fs.models_miner_power_increase_in_time(req.Miners, 0, time_at)
+		diff := time.Since(func_begin)
+		fs.Printf("get_miner_power_increased_within_time_range, use time = %.3f(second)\n", diff.Seconds())
+
 		if err != nil {
 			resp.Res = resp_search_error
 			return resp, nil
@@ -319,7 +396,7 @@ func (fs *Filscaner) MinerPowerAtTime(ctx context.Context, req *MinerPowerAtTime
 					Power:        "0",
 					PowerPercent: "0%"}
 			} else {
-				minerState = fs.to_resp_miner(ms.Record)
+				minerState = ms.Record.State()
 				otherPower.Add(otherPower, ms.Record.Power.Int)
 				if maxTotalPower.Cmp(ms.Record.TotalPower.Int) < 0 {
 					maxTotalPower = ms.Record.TotalPower.Int
@@ -333,6 +410,7 @@ func (fs *Filscaner) MinerPowerAtTime(ctx context.Context, req *MinerPowerAtTime
 				}
 			}
 
+			// fmt.Print(otherPower.String(), "\n", maxTotalPower.String(), "\n-------\n")
 			tmp.Data = append(tmp.Data, &MinerPowerAtTimeResp_X{MinerStates: minerState, AtTime: time_at})
 
 			resp.Data[addr] = tmp
@@ -349,8 +427,8 @@ func (fs *Filscaner) MinerPowerAtTime(ctx context.Context, req *MinerPowerAtTime
 			AtTime: time_at,
 			MinerStates: &MinerState{
 				Address:      "other",
-				Power:        XSizeString(otherPower),
-				PowerPercent: BigToPercent(otherPower, maxTotalPower),
+				Power:        utils.XSizeString(otherPower),
+				PowerPercent: utils.BigToPercent(otherPower, maxTotalPower),
 			}})
 		resp.Data["other"] = tmp
 
@@ -435,7 +513,7 @@ func (fs *Filscaner) ActiveStorageMinerCountAtTime(ctx context.Context, req *Act
 		} else {
 			time_at = time_at - req.TimeDiff
 		}
-		if time_at < fs.chain_genisis_time {
+		if time_at < fs.chain_genesis_time {
 			break
 		}
 	}

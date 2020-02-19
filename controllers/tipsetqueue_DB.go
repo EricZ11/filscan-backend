@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	filscanproto "filscan_lotus/filscanproto"
 	"filscan_lotus/models"
+	"filscan_lotus/utils"
 	"github.com/filecoin-project/lotus/chain/types"
 	"math"
 	"strconv"
@@ -12,12 +13,13 @@ import (
 /**
 get unification data from tipsetqueue and db
 */
+func GetBlockByIndex(start, count int) (res []*models.FilscanBlockResult, err error) {
+	// head := TipsetQueue.BlockByIndex(start, count) //get block by cash
+	head := flscaner.List().FindBlock_ofst_count(start, count)
 
-func GetBlockByIndex(start, end int) (res []*models.FilscanBlockResult, err error) {
-	head := TipsetQueue.BlockByIndex(start, end) //get block by cash
 	var v []*models.FilscanBlockResult
-	if end-start-len(head) > 0 {
-		v, err = models.GetLatestBlockList(end - start - len(head)) // get block by db
+	if count-start-len(head) > 0 {
+		v, err = models.GetLatestBlockList(count - start - len(head)) // get block by db
 		if err != nil {
 			return nil, err
 		}
@@ -25,7 +27,7 @@ func GetBlockByIndex(start, end int) (res []*models.FilscanBlockResult, err erro
 	var blockheaders []*models.FilscanBlockResult
 
 	for _, value := range head {
-		tbyte, _ := json.Marshal(value.block)
+		tbyte, _ := json.Marshal(value.Block)
 		var p *models.FilscanBlockResult
 		err := json.Unmarshal(tbyte, &p)
 		if err != nil {
@@ -40,7 +42,8 @@ func GetBlockByIndex(start, end int) (res []*models.FilscanBlockResult, err erro
 }
 
 func GetMsgByIndex(start, end int) (res []*models.FilscanMsgResult, err error) {
-	head := TipsetQueue.MsgByIndex(start, end) //get block by cash
+	// head := TipsetQueue.MsgByIndex(start, end) //get block by cash
+	head := flscaner.List().FindMesage_ofset_count(start, end) //get block by cash
 	var v []*models.FilscanMsgResult
 	if end-start-len(head) > 0 {
 		v, err = models.GetMsgLatestList(end - start - len(head)) // get block by db
@@ -88,11 +91,11 @@ func GetMsgByIndex(start, end int) (res []*models.FilscanMsgResult, err error) {
 }*/
 
 func GetfilscanprotoTipsetByHeight(startHeight, endHeight uint64) (res []*filscanproto.TipSet, err error) {
-	var queueTipElement []*Element
-	tipset := TipsetQueue.TipsetByHeight(startHeight, endHeight)
+	var queueTipElement []*models.Element
+	tipset := flscaner.List().FindTipset_in_height(startHeight, endHeight)
 	var queueStart uint64
 	if len(tipset) > 0 {
-		queueStart = tipset[0].tipset.Height()
+		queueStart = tipset[0].Tipset.Height()
 		//if tipset[0].tipset.Height() >= startHeight && tipset[len(tipset)-1].tipset.Height()>= endHeight { // all data in cash
 		//	queueTipElement = tipset
 		//}else { //part data in cash
@@ -113,10 +116,10 @@ func GetfilscanprotoTipsetByHeight(startHeight, endHeight uint64) (res []*filsca
 	if len(queueTipElement) > 0 {
 		for _, value := range queueTipElement { //get tipset  blocks info
 			tip := new(filscanproto.TipSet)
-			tip.MinTicketBlock = value.tipset.MinTicketBlock().Cid().String()
+			tip.MinTicketBlock = value.Tipset.MinTicketBlock().Cid().String()
 			var filscanblocks []*filscanproto.FilscanBlock
-			for _, value := range value.blocks {
-				tbyte, _ := json.Marshal(value.block)
+			for _, value := range value.Blocks {
+				tbyte, _ := json.Marshal(value.Block)
 				var p models.FilscanBlockResult
 				json.Unmarshal(tbyte, &p)
 				b := FilscanBlockResult2PtotoFilscanBlock(p)
@@ -179,9 +182,10 @@ func TipSet2FilscanTipSet(tipsetArr []*types.TipSet) (res []*models.FilscanTipSe
 func GetMsgByBlockMethodBeginxCount(count, beginx int64, blockCid, method string) (res []*models.FilscanMsgResult, total int, err error) {
 	var queueRes []*models.FilscanMsg
 	if len(blockCid) < 1 && len(method) < 1 {
-		queueRes = TipsetQueue.AllMsg()
+		queueRes = flscaner.List().MesageAll()
 	} else {
-		queueRes = TipsetQueue.MsgByBlockCidMethodName(blockCid, method)
+		// queueRes = TipsetQueue.MsgByBlockCidMethodName(blockCid, method)
+		queueRes = flscaner.List().FindMesage_block_method(blockCid, method)
 	}
 	var cashRes []*models.FilscanMsg
 	var diff int
@@ -215,7 +219,8 @@ func GetMsgByBlockMethodBeginxCount(count, beginx int64, blockCid, method string
 }
 
 func GetBlockByMiner(minerArr []string, start, count int) (res []*models.FilscanBlockResult, total int, err error) {
-	blockList := TipsetQueue.SortBlockByMinerArr(minerArr)
+	// blockList := TipsetQueue.SortBlockByMinerArr(minerArr)
+	blockList := flscaner.List().FindBlock_miners(minerArr)
 
 	total = len(blockList)
 	//var cashRes []*models.FilscanBlock
@@ -246,8 +251,21 @@ func GetBlockByMiner(minerArr []string, start, count int) (res []*models.Filscan
 	return fbr, total, nil
 }
 
+func GetBlockTotalFilByMiner(minerArr []string) (total string, err error) {
+	// blockList := TipsetQueue.SortBlockByMinerArr(minerArr) //缓存中的block
+	blockList := flscaner.List().FindBlock_miners(minerArr)
+	var totalFil float64
+	for _, value := range blockList {
+		totalFil += utils.StringToFloat(value.BlockReward)
+	}
+	dbTotal, err := models.GetBlockTotalRewardFilByMiner(minerArr) // get blockfil by db
+	totalFil += utils.StringToFloat(dbTotal)
+	return utils.FloatToString(totalFil), nil
+}
+
 func GetMsgByAddressFromToMethod(address, fromTo, method string, start, count int) (res []*models.FilscanMsgResult, total int, err error) {
-	queueMsgList := TipsetQueue.MsgByAddressFromToMethodName(address, fromTo, method)
+	// queueMsgList := TipsetQueue.MsgByAddressFromToMethodName(address, fromTo, method)
+	queueMsgList := flscaner.List().FindMesage_address(address, fromTo, method)
 
 	var cashRes []*models.FilscanMsg
 	total = len(queueMsgList)
@@ -285,10 +303,11 @@ func GetMsgByAddressFromToMethod(address, fromTo, method string, start, count in
 
 //从DB  CASH 获取 时间区间内的 block
 func GetBlockNumByTime(startTime, endTime int64) (bms []*models.FilscanBlockResult, err error) {
-	allBlock := TipsetQueue.AllBlock()
+	// allBlock := TipsetQueue.AllBlock()
+	allBlock := flscaner.List().Blocks()
 	for _, value := range allBlock {
-		if value.block.BlockHeader.Timestamp > uint64(startTime) && value.block.BlockHeader.Timestamp < uint64(endTime) {
-			tbyte, _ := json.Marshal(value.block)
+		if value.Block.BlockHeader.Timestamp > uint64(startTime) && value.Block.BlockHeader.Timestamp < uint64(endTime) {
+			tbyte, _ := json.Marshal(value.Block)
 			var p *models.FilscanBlockResult
 			err := json.Unmarshal(tbyte, &p)
 			if err != nil {
@@ -307,12 +326,54 @@ func GetBlockNumByTime(startTime, endTime int64) (bms []*models.FilscanBlockResu
 //从DB  CASH 获取 时间区间内的 tipset数量
 func GetTipsetNumByTime(startTime, endTime int64) (num int, err error) {
 	//allBlock := TipsetQueue.AllBlock()
-	for _, value := range TipsetQueue.element {
-		if int64(value.tipset.MinTimestamp()) >= startTime && int64(value.tipset.MinTimestamp()) < endTime {
-			num += 1
-		}
-	}
+	// for _, value := range TipsetQueue.element {
+	// 	if int64(value.Tipset.MinTimestamp()) >= startTime && int64(value.Tipset.MinTimestamp()) < endTime {
+	// 		num += 1
+	// 	}
+	// }
+	num = int(flscaner.List().TipsetCountInTime(startTime, endTime))
 	resTipset, err := models.GetTipsetCountByStartEndTime(startTime, endTime)
 	num = num + resTipset
 	return
+}
+
+//获取时间区间内合适的 tipset height
+// func GetProperTipsetHeightByTime(time uint64) (uint64, error) {
+// 	var tipset *types.TipSet
+// 	for _, value := range TipsetQueue.element {
+// 		if value.Tipset.MinTimestamp() <= time {
+// 			if tipset != nil {
+// 				if value.Tipset.MinTimestamp() > tipset.MinTimestamp() {
+// 					tipset = value.Tipset
+// 				}
+// 			} else {
+// 				tipset = value.Tipset
+// 			}
+// 		}
+// 	}
+//
+// 	//if l == 1 {
+// 	//	return tipsets[0].Height(), nil
+// 	//}
+// 	if tipset != nil {
+// 		return tipset.Height(), nil
+// 	}
+// 	t, err := models.GetTipsetByTime(int64(time))
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	if t != nil {
+// 		return t.Height, nil
+// 	} else {
+// 		return 0, nil
+// 	}
+// }
+
+func GetLatestBlockReward() (string, error) {
+	fil := flscaner.List().LatestBlockrewards()
+	if fil == "" || fil == "0" {
+		return models.GetLatestReward()
+	}
+	return fil, nil
+
 }

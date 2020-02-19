@@ -2,29 +2,19 @@ package filscaner
 
 import (
 	"filscan_lotus/models"
+	"filscan_lotus/utils"
 	"fmt"
+	"math/big"
+
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/vm"
-	"github.com/globalsign/mgo/bson"
-	"math/big"
 )
 
-const PrecisionDefault = float64(0.00001)
+// const PrecisionDefault = 8 // float64(0.00001)
 
 var blocksPerEpoch = big.NewInt(build.BlocksPerEpoch)
-
-func ToFil(v *big.Int) float64 {
-	fbig, _ := big.NewFloat(0).SetString(v.String())
-	fv, _ := fbig.Float64()
-	return TruncateNaive(fv/build.FilecoinPrecision, PrecisionDefault)
-}
-
-func ToFilString(v *big.Int) string {
-	value := ToFil(v)
-	return fmt.Sprintf("%.4f", value)
-}
 
 // 返回每个周期中的奖励filcoin数量和释放的奖励数量
 func (fs *Filscaner) future_block_rewards(timediff, repeate uint64) ([]*big.Int, *big.Int, error) {
@@ -32,7 +22,7 @@ func (fs *Filscaner) future_block_rewards(timediff, repeate uint64) ([]*big.Int,
 	if err != nil {
 		return nil, nil, err
 	}
-	fmt.Printf("\n!!!!!!!net work balance=%.3f\n", ToFil(coffer.Int))
+	fmt.Printf("\n!!!!!!!net work balance=%.3f\n", utils.ToFil(coffer.Int))
 
 	released := big.NewInt(0).Set(coffer.Int)
 
@@ -94,32 +84,24 @@ func (fs *Filscaner) released_reward_at_height(height uint64) *big.Int {
 	return rewards.Add(rewards, release_rewards.ReleasedRewards.Int)
 }
 
-func (fs *Filscaner) block_reward_at_height(height uint64) (*big.Int, *big.Int) {
-	total := big.NewInt(0).Set(TOTAL_REWARDS)
-	released := fs.released_reward_at_height(height)
-	return released, total.Sub(total, released)
-}
-
-
-func (fs *Filscaner) init_miners() error {
+func (fs *Filscaner) list_genesis_miners() (*Tipset_miner_messages, error) {
 	tipset, err := fs.api.ChainGetGenesis(fs.ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	miners, err := fs.api.StateListMiners(fs.ctx, tipset)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	var size = len(miners)
-	var to_updates = make([]interface{}, size*2)
-	for index, miner := range miners {
-		if m, err := fs.api_get_miner_state_at_tipset(miner, tipset); err != nil {
-			continue
-		} else {
-			to_updates[index*2] = bson.M{"mine_addr": m.MinerAddr, "tipset_height": tipset.Height()}
-			to_updates[index*2+1] = m
-		}
+	// mminers := (utils.SlcToMap(miners, "", false)).(map[string]struct{})
+	tipest_miner_messages := &Tipset_miner_messages{
+		miners:make(map[string]struct{}),
+		tipset: tipset}
+
+	for _, v := range miners {
+		tipest_miner_messages.miners[v.String()] = struct{}{}
 	}
-	return models.BulkUpsertMiners(to_updates)
+
+	return tipest_miner_messages, nil
 }

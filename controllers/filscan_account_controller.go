@@ -40,11 +40,12 @@ func (this *FilscanAccount) ActorById(ctx context.Context, input *filscanproto.A
 		resp.Res = common.NewResult(5, "search err")
 		return resp, nil
 	}
-	if res == nil {
+	if res == nil || len(res.Address) < 1 || len(res.Actor.Code.Str) < 1 {
 		resp.Res = common.NewResult(3, "success")
 		return resp, nil
 	}
 	actor := AccountResult2ProtoAccount(res)
+
 	wList := []string{}
 	if res.IsOwner {
 		wList, err = models.MinerListByWalletAddr(address)
@@ -62,15 +63,17 @@ func (this *FilscanAccount) ActorById(ctx context.Context, input *filscanproto.A
 			resp.Res = common.NewResult(5, "search err")
 			return resp, nil
 		}
-		miner.OwnerAddress = m.WalletAddr
-		miner.PeerId = m.PeerId
-		miner.SectorSize = m.SectorSize
-		if m.Power != nil {
-			miner.Power = m.Power.Int64()
-		}
-		miner.SectorNum = m.SectorCount
-		if m.ProvingSectorSize != nil && m.ProvingSectorSize.Int64() > 0 && m.SectorSize > 0 {
-			miner.ProvingSectorNum = int64(float64(m.ProvingSectorSize.Uint64() / m.SectorSize))
+		if m != nil {
+			miner.OwnerAddress = m.WalletAddr
+			miner.PeerId = m.PeerId
+			miner.SectorSize = m.SectorSize
+			if m.Power != nil {
+				miner.Power = m.Power.Int64()
+			}
+			miner.SectorNum = m.SectorCount
+			if m.ProvingSectorSize != nil && m.ProvingSectorSize.Int64() > 0 && m.SectorSize > 0 {
+				miner.ProvingSectorNum = int64(float64(m.ProvingSectorSize.Uint64() / m.SectorSize))
+			}
 		}
 		//miner.FaultNum
 	}
@@ -102,7 +105,8 @@ func (this *FilscanAccount) AccountList(ctx context.Context, input *filscanproto
 	var acountList []*filscanproto.FilscanActor
 	for _, value := range res {
 		total, err := models.GetMsgByAddressFromToMethodNameCount(value.Address, "", "")
-		queueMsgList := TipsetQueue.MsgByAddressFromToMethodName(value.Address, "", "")
+		// queueMsgList := TipsetQueue.MsgByAddressFromToMethodName(value.Address, "", "")
+		queueMsgList := flscaner.List().FindMesage_address(value.Address, "", "")
 		if err != nil {
 			resp.Res = common.NewResult(5, "search err")
 			return resp, nil

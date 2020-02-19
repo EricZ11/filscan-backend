@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"filscan_lotus/filscaner"
 	filscanproto "filscan_lotus/filscanproto"
 	"filscan_lotus/models"
 	"gitlab.forceup.in/dev-proto/common"
@@ -12,6 +13,10 @@ import (
 var _ filscanproto.FilscanTipsetServer = (*FilscanTipset)(nil)
 
 type FilscanTipset struct {
+}
+
+func TipsetQueue() *filscaner.Fs_tipset_cache {
+	return flscaner.List()
 }
 
 /**
@@ -39,10 +44,11 @@ func (this *FilscanTipset) BlockByHeight(ctx context.Context, input *filscanprot
 		return resp, nil
 	}
 	if len(blocks) < 1 {
-		e := TipsetQueue.TipsetByOneHeight(h)
+		// e := fTipsetQueue.TipsetByOneHeight(h)
+		e := TipsetQueue().FindTipset_height(h)
 		if e != nil {
-			for _, value := range e.blocks {
-				tbyte, _ := json.Marshal(value.block)
+			for _, value := range e.Blocks {
+				tbyte, _ := json.Marshal(value.Block)
 				var p models.FilscanBlockResult
 				json.Unmarshal(tbyte, &p)
 				blocks = append(blocks, p)
@@ -75,9 +81,10 @@ func (this *FilscanTipset) BlockByCid(ctx context.Context, input *filscanproto.B
 		return resp, nil
 	}
 	if len(blocks) < 1 {
-		bm := TipsetQueue.BlockByCid(cid)
+		// bm := TipsetQueue.BlockByCid(cid)
+		bm := TipsetQueue().FindBlock_id(cid)
 		if bm != nil {
-			tbyte, _ := json.Marshal(bm.block)
+			tbyte, _ := json.Marshal(bm.Block)
 			var p models.FilscanBlockResult
 			json.Unmarshal(tbyte, &p)
 			blocks = append(blocks, p)
@@ -147,11 +154,14 @@ func (this *FilscanTipset) BlockByMiner(ctx context.Context, input *filscanproto
 		return resp, nil
 	}
 	var fbList []*filscanproto.FilscanBlock
+
 	for _, value := range res {
 		fbList = append(fbList, FilscanBlockResult2PtotoFilscanBlock(*value))
 	}
 	resp.Res = common.NewResult(3, "success")
-	bs := &filscanproto.BlockByMinerResp_Data{Blocks: fbList, Total: int64(total)}
+	t, _ := GetBlockTotalFilByMiner(minerArr)
+
+	bs := &filscanproto.BlockByMinerResp_Data{Blocks: fbList, Total: int64(total), TotalFil: t}
 	resp.Data = bs
 	return resp, nil
 }
@@ -171,13 +181,15 @@ func (this *FilscanTipset) BlockConfirmCount(ctx context.Context, input *filscan
 	var count uint64
 
 	if tipset == nil { //db 中不存在
-		bm := TipsetQueue.BlockByCid(blockCid) //cash  block
+		// bm := TipsetQueue.BlockByCid(blockCid) //cash  block
+		bm := TipsetQueue().FindBlock_id(blockCid) //cash  block
 		if bm == nil {
 			resp.Res = common.NewResult(3, "success")
 			resp.Data = &filscanproto.CountResq_Data{Count: "fail"}
 			return resp, nil
 		} else {
-			count += uint64(len(TipsetQueue.TipsetByHeight(bm.block.BlockHeader.Height, TipsetQueue.element[len(TipsetQueue.element)-1].tipset.Height()))) //cash中 tipset高度 > bm高度 的数量
+			// count += uint64(len(TipsetQueue.TipsetByHeight(bm.Block.BlockHeader.Height, TipsetQueue.element[len(TipsetQueue.element)-1].Tipset.Height()))) //cash中 tipset高度 > bm高度 的数量
+			count += uint64(len(TipsetQueue().FindTipset_in_height(bm.Block.BlockHeader.Height, TipsetQueue().Front().Height())))
 		}
 	} else {
 		than, err := models.ThanHeightCount(tipset.Height)
@@ -185,7 +197,8 @@ func (this *FilscanTipset) BlockConfirmCount(ctx context.Context, input *filscan
 			resp.Res = common.NewResult(5, "Search err")
 			return resp, nil
 		}
-		count = uint64(than + TipsetQueue.Size())
+		// count = uint64(than + TipsetQueue.Size())
+		count = uint64(than + TipsetQueue().Size())
 	}
 	resp.Res = common.NewResult(3, "success")
 	c := strconv.FormatUint(count, 10)

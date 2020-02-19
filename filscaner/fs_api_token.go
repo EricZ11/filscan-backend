@@ -4,7 +4,9 @@ import (
 	"context"
 	. "filscan_lotus/filscanproto"
 	"filscan_lotus/models"
+	"filscan_lotus/utils"
 	"fmt"
+	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	"gitlab.forceup.in/dev-proto/common"
@@ -13,8 +15,9 @@ import (
 )
 
 var resp_success = &common.Result{Code: 3, Msg: "success"}
-var resp_search_error = &common.Result{Code: 5, Msg: "search error"}
+var resp_search_error = &common.Result{Code: 5, Msg: "search faild"}
 var resp_invalid_parama = &common.Result{Code: 5, Msg: "invalid param"}
+var resp_lotus_api_error = &common.Result{Code: 5, Msg: "lotus api failed"}
 
 func (fs *Filscaner) error_resp(err error) *common.Result {
 	return common.NewResult(3, err.Error())
@@ -39,7 +42,7 @@ func (fs *Filscaner) FilNetworkBlockReward(ctx context.Context, req *FutureBlock
 	for index, v := range rewards {
 		resp.Data[index] = &FutureBlockRewardResp_Data{
 			Time:         time_now,
-			BlockRewards: ToFilString(v)}
+			BlockRewards: utils.ToFilStr(v)}
 		// VestedRewards: released.String()}
 		time_now += timediff
 		// released.Add(released, v)
@@ -68,10 +71,6 @@ var TOTAL_FILCOIN = types.FromFil(build.TotalFilecoin).Int
 // 	return total_used, remaining.Int
 // }
 
-func (fs *Filscaner) vested_attime(time_at uint64) *big.Int {
-	return big.NewInt(0)
-}
-
 func (fs *Filscaner) FilOutStanding(ctx context.Context, req *FilOutstandReq) (*FiloutstandResp, error) {
 	start := req.TimeAt
 	diff := req.TimeDiff
@@ -91,7 +90,7 @@ func (fs *Filscaner) FilOutStanding(ctx context.Context, req *FilOutstandReq) (*
 	set_with_last_data := func(data []*FiloutstandResp_Data, iii *FiloutstandResp_Data) []*FiloutstandResp_Data {
 		length := len(data)
 		if length == 0 {
-			zero_fil := ToFilString(big.NewInt(0))
+			zero_fil := utils.ToFilStr(big.NewInt(0))
 			iii.Floating = zero_fil
 			iii.PlegeCollateral = zero_fil
 			iii.PlegeCollateral = zero_fil
@@ -102,7 +101,7 @@ func (fs *Filscaner) FilOutStanding(ctx context.Context, req *FilOutstandReq) (*
 	}
 
 	for i := uint64(0); i < repeate; i++ {
-		if start < fs.chain_genisis_time {
+		if start < fs.chain_genesis_time {
 			continue
 		}
 		if start > time_now {
@@ -120,7 +119,7 @@ func (fs *Filscaner) FilOutStanding(ctx context.Context, req *FilOutstandReq) (*
 		// min_released_reward := fs.released_reward_at_height(min_height)
 		max_released_reward := fs.released_reward_at_height(max_height)
 
-		filoutresp_data.Floating = ToFilString(max_released_reward)
+		filoutresp_data.Floating = utils.ToFilStr(max_released_reward)
 
 		tipset, err := fs.api.ChainGetTipSetByHeight(fs.ctx, max_height, nil)
 		if err != nil {
@@ -135,8 +134,8 @@ func (fs *Filscaner) FilOutStanding(ctx context.Context, req *FilOutstandReq) (*
 			return nil, err
 		}
 
-		filoutresp_data.PlegeCollateral = ToFilString(pleged.Int)
-		filoutresp_data.Outstanding = fmt.Sprintf("%.4f", ToFil(max_released_reward)+ToFil(pleged.Int))
+		filoutresp_data.PlegeCollateral = utils.ToFilStr(pleged.Int)
+		filoutresp_data.Outstanding = fmt.Sprintf("%.4f", utils.ToFil(max_released_reward)+utils.ToFil(pleged.Int))
 		data = append(data, filoutresp_data)
 	}
 
@@ -151,8 +150,8 @@ func (fs *Filscaner) CumulativeBlockRewardsOverTime(ctx context.Context, req *CB
 	diff := req.TimeDiff
 	repeate := req.Repeate
 
-	if start < fs.chain_genisis_time {
-		start = fs.chain_genisis_time
+	if start < fs.chain_genesis_time {
+		start = fs.chain_genesis_time
 	}
 
 	resp := &CBROResp{}
@@ -192,7 +191,7 @@ func (fs *Filscaner) CumulativeBlockRewardsOverTime(ctx context.Context, req *CB
 			}
 		} else {
 			max_released = fs.released_reward_at_height(max_height)
-			cbrresp_data.BlocksReward = ToFilString(max_released)
+			cbrresp_data.BlocksReward = utils.ToFilStr(max_released)
 			cbrresp_data.MinerCount = miner_count
 		}
 
@@ -205,14 +204,13 @@ func (fs *Filscaner) CumulativeBlockRewardsOverTime(ctx context.Context, req *CB
 	return resp, nil
 }
 
-
 func (fs *Filscaner) MinerRewards(ctx context.Context, req *MinerRewardsReq) (*MinerRewardsResp, error) {
 	resp := &MinerRewardsResp{}
 
 	var start, count uint64
 	var is_height bool
 
-	if req.HeightCount!= 0 {
+	if req.HeightCount != 0 {
 		is_height = true
 		start = req.HeightStart
 		count = req.HeightCount
@@ -220,9 +218,6 @@ func (fs *Filscaner) MinerRewards(ctx context.Context, req *MinerRewardsReq) (*M
 		is_height = false
 		start = req.TimeStart
 		count = req.TimeDiff
-		// if start < fs.chain_genisis_time {
-		// 	start = fs.chain_genisis_time
-		// }
 	}
 
 	if count == 0 {
@@ -233,9 +228,9 @@ func (fs *Filscaner) MinerRewards(ctx context.Context, req *MinerRewardsReq) (*M
 	// convert t3 address to t0 address
 	var miners = req.Miners
 	var worker_map map[string]string // t0 -> t3
-	if len(miners)==0 && len(req.Workers)!=0 {
+	if len(miners) == 0 && len(req.Workers) != 0 {
 		var err error
-		if worker_map, err = models.GetMinersByT3(req.Workers); err!=nil {
+		if worker_map, err = models.GetMinersByT3(req.Workers); err != nil {
 			resp.Res = resp_search_error
 			return resp, nil
 		} else {
@@ -265,8 +260,8 @@ func (fs *Filscaner) MinerRewards(ctx context.Context, req *MinerRewardsReq) (*M
 			miners_rewards[addr] = mrds
 		}
 
-		if worker_map!=nil {
-			if worker, exist := worker_map[addr]; worker!="" && exist {
+		if worker_map != nil {
+			if worker, exist := worker_map[addr]; worker != "" && exist {
 				mrds.Woker = worker
 			}
 		}
@@ -276,7 +271,7 @@ func (fs *Filscaner) MinerRewards(ctx context.Context, req *MinerRewardsReq) (*M
 			mrds.Items = append(mrds.Items, &MinerRewards_Item{
 				Rewards: reward_fil,
 				Height:  xxx.Height})
-			mrds.TotalRewards = float32(TruncateNaive(float64(mrds.TotalRewards+reward_fil), PrecisionDefault))
+			mrds.TotalRewards = float32(utils.TruncateNative(float64(mrds.TotalRewards+reward_fil), utils.PrecisionDefault))
 		}
 	}
 
@@ -286,5 +281,86 @@ func (fs *Filscaner) MinerRewards(ctx context.Context, req *MinerRewardsReq) (*M
 			MinerRewards: miners_rewards,
 		}
 	}
+	return resp, nil
+}
+
+func (fs *Filscaner) BalanceIncreased(ctx context.Context, req *BalanceIncreaseReq) (*BalanceIncreaseResp, error) {
+	resp := &BalanceIncreaseResp{}
+
+	time_start := req.TimeStart
+	time_end := req.TimeEnd
+
+	miner, err := address.NewFromString(req.Address)
+	if err != nil {
+		resp.Res = &common.Result{Code: 3, Msg: "invalid address"}
+		return resp, nil
+	}
+
+	models.GetTipsetByTime(int64(time_start))
+	height_start, err := fs.models_get_tipset_at_time(time_start, false)
+	//  height_start, err := controllers.GetProperTipsetHeightByTime(time_start)
+
+	if height_start == 0 {
+		height_start = 1
+	}
+
+	if err != nil {
+		resp.Res = resp_search_error
+		fs.Printf("get_first_tipset_after_time faild, message:%s\n", err.Error())
+		return resp, nil
+	}
+
+	height_end, err := fs.models_get_tipset_at_time(time_end, true)
+	// height_end, err := fs.models_get_first_tipset_after_time(time_end)
+	// height_end, err := controllers.GetProperTipsetHeightByTime(time_end)
+	if err != nil {
+		resp.Res = resp_search_error
+		fs.Printf("get_first_tipset_after_time faild, message:%s\n", err.Error())
+		return resp, nil
+	}
+
+	if height_start >= height_end {
+		resp.Res = common.NewResult(3, "indvalid tipset_height")
+		return resp, nil
+	}
+
+	tipset_start, err := fs.api.ChainGetTipSetByHeight(fs.ctx, height_start, nil)
+	if err != nil {
+		fs.Printf("chain_get_tipset_by_height faild, message:%s\n", err.Error())
+		resp.Res = resp_lotus_api_error
+		return resp, nil
+	}
+
+	tipset_end, err := fs.api.ChainGetTipSetByHeight(fs.ctx, height_end, nil)
+	if err != nil {
+		fs.Printf("chain_get_tipset_by_height faild, message:%s\n", err.Error())
+		resp.Res = resp_lotus_api_error
+		return resp, nil
+	}
+
+	balance_start, err := fs.api.StateGetActor(fs.ctx, miner, tipset_start)
+	if err != nil {
+		fs.Printf("state_get_actor faild, message:%s\n", err.Error())
+		resp.Res = resp_lotus_api_error
+		return resp, nil
+	}
+	balance_end, err := fs.api.StateGetActor(fs.ctx, miner, tipset_end)
+	if err != nil {
+		fs.Printf("state_get_actor faild, message:%s\n", err.Error())
+		resp.Res = resp_lotus_api_error
+		return resp, nil
+	}
+
+	balance_increased := balance_end.Balance.Sub(balance_end.Balance.Int, balance_start.Balance.Int)
+
+	resp.Res = resp_success
+	resp.Data = &BalanceIncreaseResp_Data{
+		Address:           req.Address,
+		TimeStart:         req.TimeStart,
+		TimeEnd:           req.TimeEnd,
+		TipsetHeightStart: height_start,
+		TipsetHeigthEnd:   height_end,
+		BalanceIncreased:  utils.ToFilStr(balance_increased)}
+
 	return resp, nil
 }

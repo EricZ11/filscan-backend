@@ -6,13 +6,24 @@ import (
 	"github.com/globalsign/mgo"
 	"github.com/ipfs/go-cid"
 	"gopkg.in/mgo.v2/bson"
+	"strconv"
 )
+
+type Element struct {
+	Tipset *types.TipSet
+	Blocks []*BlockAndMsg
+}
+
+type BlockAndMsg struct {
+	Block *FilscanBlock
+	Msg   []*FilscanMsg
+}
 
 type FilscanBlock struct {
 	Cid         string             `bson:"cid" json:"cid"`
 	BlockHeader *types.BlockHeader `bson:"block_header" json:"block_header"`
 	MsgCids     []cid.Cid          `bson:"msg_cids" json:"msg_cids"`
-	BlockReward float64            `bson:"block_reword" json:"block_reword"`
+	BlockReward string             `bson:"block_reword" json:"block_reword"`
 	Size        int64              `bson:"size" json:"size"`
 	IsMaster    int                `bson:"is_master" json:"is_master"`
 	GmtCreate   int64              `bson:"gmt_create" json:"gmt_create"`
@@ -22,7 +33,7 @@ type FilscanBlockResult struct {
 	Cid         string       `bson:"cid" json:"cid"`
 	BlockHeader BlockHeader  `bson:"block_header" json:"block_header"`
 	MsgCids     []FilscanCid `bson:"msg_cids" json:"msg_cids"`
-	BlockReword float64      `bson:"block_reword" json:"block_reword"`
+	BlockReword string       `bson:"block_reword" json:"block_reword"`
 	Size        int64        `bson:"size" json:"size"`
 	IsMaster    int          `bson:"is_master" json:"is_master"`
 	GmtCreate   int64        `bson:"gmt_create" json:"gmt_create"`
@@ -67,7 +78,7 @@ type BlockHeaderSignature struct {
 }
 
 const (
-	BlocksCollection = "block"
+	BlocksCollection = "Block"
 )
 
 func Create_block_index() {
@@ -142,6 +153,7 @@ func GetBlockByHeight(height uint64) (res []FilscanBlockResult, err error) {
 	err = FindAll(BlocksCollection, q, nil, &res)
 	return
 }
+
 func GetBlockByTime(startTime, endTime int64) (res []*FilscanBlockResult, err error) {
 	q := bson.M{"block_header.Timestamp": bson.M{"$gte": startTime, "$lt": endTime}}
 	err = FindAll(BlocksCollection, q, nil, &res)
@@ -199,36 +211,46 @@ func GetBlockListByMiner(minerArr []string, begindex, count int) (res []*Filscan
 	return res, total, err
 }
 
-/*func GetBlockMsgs(blockCid  string)(res []FilscanBlockResult , err error){
-	q := bson.M{"$lookup":bson.M{
-		"from":"msg",
-		"localField":"msg_cids./",
-		"foreignField":
-	} }
-	//"cid":blockCid,bson.M{
-}*/
-/*
-type FilscanBlock_01 struct {
-	BlockHeader struct {
-		Height  int64       `bson:"Height" json:"Height"`
-		Parents interface{} `bson:"Parents" json:"Parents"`
-	} `bson:"block_header" json:"block_header"`
-	Size int64 `bson:"size" json:"size"`
+/**
+db.Block.aggregate([
+//     {'$match':{'block_header.Miner':{   } },
+    {
+        $group: {
+            _id: "",
+            num_tutorial: {
+                $sum: {
+                    "$toDouble": "$block_reword"
+                }
+            }
+        }
+    }
+])
+*/
+
+func GetBlockTotalRewardFilByMiner(minerArr []string) (total string, err error) {
+	o0 := bson.M{"$match": bson.M{"block_header.Miner": bson.M{"$in": minerArr}}}
+	o1 := bson.M{"$group": bson.M{"_id": "", "total": bson.M{"$sum": bson.M{"$toDouble": "$block_reword"}}}}
+	operations := []bson.M{o0, o1}
+	type result struct {
+		Id    bson.ObjectId `json:"id,omitempty" bson:"_id,omitempty"`
+		Total float64       `json:"total,omitempty" bson:"total,omitempty"`
+	}
+	var res []result
+	err = AggregateAll(BlocksCollection, operations, &res)
+	if err != nil {
+		return "0", err
+	}
+	if len(res) > 0 {
+		total = strconv.FormatFloat(res[0].Total, 'f', -1, 64)
+		return total, nil
+	} else {
+		return "0", nil
+	}
 }
 
-func GetBlockByHeight() (err error) {
-	q := bson.M{"cid": "bafy2bzaced4sstkwxreoqli6mr3tu56wpv4cnzrcnt3iytpsugt6isiyd7kou"}
-	var res FilscanBlock_01
-	//v := res["weight"].(string)
-	err = FindOne(BlocksCollection, q, nil, &res)
+func GetDistinctMinerByTime(startTime, endTime int64) (res []string, err error) {
+	q := bson.M{"gmt_create": bson.M{"$gte": startTime, "$lte": endTime}}
+	//err = Distinct(MsgCollection, "message.Method", q, &res)
+	err = Distinct(BlocksCollection, "block_header.Miner", q, &res)
 	return
 }
-
-
-}
-func init() {
-	go func() {
-		time.Sleep(time.Second * 1)
-		GetOneBlockByCid("bafy2bzacecwkrykav6zimfcuypjhfcmp2tsnzt5tulpsww5mngb7x47p6m3wy")
-	}()
-}*/

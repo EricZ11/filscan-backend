@@ -1,15 +1,15 @@
 package fblockstore
 
 import (
+	"github.com/globalsign/mgo/bson"
 	"reflect"
 	"strconv"
 
+	"filscan_lotus/filscaner/force/fblockstore/encoding"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/chain/types"
 	cid "github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"filscan_lotus/controllers/filscaner/force/fblockstore/encoding"
-	"gopkg.in/mgo.v2/bson"
 )
 
 var chainTypes = []reflect.Type{

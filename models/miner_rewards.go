@@ -32,6 +32,24 @@ type TipsetBlockRewards struct {
 	Miners                map[string]*miners_blocks_rewards `bson"miners"`
 }
 
+func Create_miner_index() {
+	ms, c := Connect(MinerCollection)
+	defer ms.Close()
+
+	ms.SetMode(mgo.Monotonic, true)
+
+	indexs := []mgo.Index{
+		{Key: []string{"-mine_time"}, Unique: false, Background: true},
+		{Key: []string{"miner_addr"}, Unique: false, Background: true},
+		{Key: []string{"peer_id"}, Unique: false, Background: true},
+	}
+	for _, index := range indexs {
+		if err := c.EnsureIndex(index); err != nil {
+			panic(err)
+		}
+	}
+}
+
 func Create_Tipset_Rewards_Index() {
 	ms, c := Connect(TipsetRewardsCollection)
 	defer ms.Close()
@@ -129,6 +147,7 @@ func Loop_WalkThroughTipsetRewards(ctx context.Context) error {
 		var block_reward types.BigInt
 		tipset_rewards_map := make(map[uint64]*TipsetBlockRewards)
 
+		// todo : zfl说没有multi这里需要检查一下..
 		for _, block := range blocks {
 			height := block.BlockHeader.Height
 			miner_addr := block.BlockHeader.Miner
@@ -145,7 +164,7 @@ func Loop_WalkThroughTipsetRewards(ctx context.Context) error {
 
 				block_reward = vm.MiningReward(remaining_filcoin)
 
-				// block.BlockHeader.Timestamp
+				// Block.BlockHeader.Timestamp
 				tipset_rewards = &TipsetBlockRewards{
 					TipsetHeight:          height,
 					TotalBlockCount:       previouse_tipset_rewards.TotalBlockCount,
@@ -183,7 +202,7 @@ func bulkUpsertTipsetRewards(tipset_rewards map[uint64]*TipsetBlockRewards) erro
 		index++
 	}
 
-	_, err := BulkUpsert(TipsetRewardsCollection, bulk_elements)
+	_, err := BulkUpsert(nil, TipsetRewardsCollection, bulk_elements)
 	return err
 }
 
@@ -282,4 +301,13 @@ func GetLatestReward() (string, error) {
 	count := types.NewInt(trs[0].TipsetBlockCount)
 	reward := types.FIL(types.BigDiv(tipsetReward, count)).String()
 	return reward, nil
+}
+
+func Height_block_chain_rewards(height uint64) ([]*TipsetBlockRewards, error) {
+	ms, c := Connect(TipsetRewardsCollection)
+	defer ms.Close()
+	var last_tipset_rewards []*TipsetBlockRewards
+	q := bson.M{"tipset_height": height}
+	err := c.Find(q).All(&last_tipset_rewards)
+	return last_tipset_rewards, err
 }

@@ -3,7 +3,7 @@ package controllers
 import (
 	"context"
 	"crypto/md5"
-	"filscan_lotus/controllers/filscaner"
+	"filscan_lotus/filscaner"
 	"filscan_lotus/filscanproto"
 	"filscan_lotus/models"
 	"fmt"
@@ -25,8 +25,8 @@ var UserTokenMap map[string]*vcode_t
 var ps = fmt.Sprintf
 var RedisClient *redis.Client
 var SidLife int64
-var TipsetQueue *SliceEntry
-var filscanerInst *filscaner.Filscaner
+var TipsetQueue0 *SliceEntry
+var flscaner *filscaner.Filscaner
 
 var conf = beego.AppConfig.String
 var Logger *zap.SugaredLogger
@@ -36,6 +36,7 @@ var lotusBaseInformation *LotusBaseInformation
 var peerPointCash *PeerPointCash
 var avgBlockTimeCash *AvgBlockTimeCash
 var avgBlockSizeCash *AvgBlockSizeCash
+var totalPowerCash *TotalPowerCash
 
 type LotusBaseInformation struct {
 	TipsetHeight      uint64
@@ -46,6 +47,13 @@ type LotusBaseInformation struct {
 	PledgeCollateral  string
 	Time              int64
 	CashTime          int64
+}
+
+type TotalPowerCash struct {
+	StorageCapacity float64
+	Data            []*filscanproto.TotalPowerGraphical
+	Time            int64
+	CashTime        int64
 }
 
 type PeerPointCash struct {
@@ -73,16 +81,12 @@ type AvgBlockSizeCash struct {
 	CashTime     int64
 }
 
-type TotalPowerCash struct {
-	//BlockTime []*filscanproto.Blocktime
-	Time int64
-}
-
 type Recv struct {
 	Code int
 	Msg  string
 	Data interface{}
 }
+
 type vcode_t struct {
 	code     string
 	lasttime int64
@@ -93,14 +97,18 @@ func Firstinit() {
 	//OriginInit()
 	BeegoInit()
 	LotusInit()
-	MongoDBInit()
+	models.Db_init(beego.AppConfig)
 	models.TimenowInit()
 	LoggerInit()
-	//MysqlInit()
+	// MysqlInit()
 	ArgInit()
 	UpdatePeers()
 	UpdateAllAccount()
 	return
+}
+
+func SetFilscaner(filscaner *filscaner.Filscaner) {
+	flscaner = filscaner
 }
 
 func Run() {
@@ -160,36 +168,15 @@ func ArgInit() {
 	HomeCashTime, _ := strconv.ParseInt(homeGraphicalCash, 10, 64)
 	avgBlockTimeCash = &AvgBlockTimeCash{CashTime: HomeCashTime}
 	avgBlockSizeCash = &AvgBlockSizeCash{CashTime: HomeCashTime}
+	totalPowerCash = &TotalPowerCash{CashTime: HomeCashTime}
 
-	err, inst := filscaner.NewInstance(context.TODO(), LotusApi)
-	if err != nil {
-		panic(ps("filscaner.NewInstance fail:%v", err.Error()))
+	if false {
+		inst, err := filscaner.NewInstance(context.TODO(), "./conf/app.conf", LotusApi)
+		if err != nil {
+			panic(ps("filscaner.NewInstance fail:%v", err.Error()))
+		}
+		flscaner = inst
 	}
-	filscanerInst = inst
-}
-
-func MongoDBInit() {
-	host := conf("mongoHost")
-	user := conf("mongoUser")
-	pass := conf("mongoPass")
-	mongoDB := conf("mongoDB")
-	mgosession := models.GetGlobalSession(host, user, pass, mongoDB)
-	_, err := mgosession.DatabaseNames()
-	if err != nil {
-		panic(ps("mongoInit fail:%v", err))
-	}
-	models.DB = mongoDB
-	log("mongoInit success dbName=%v", models.DB)
-
-	models.Create_block_index()
-	models.Create_block_reward_index()
-
-	models.Create_tipset_index()
-	models.Create_peer_index()
-	models.Create_msg_index()
-	models.Create_block_index()
-	models.Create_account_index()
-	models.Create_Tipset_Rewards_Index()
 }
 
 func LotusInit() {

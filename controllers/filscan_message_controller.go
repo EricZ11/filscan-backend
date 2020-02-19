@@ -58,7 +58,8 @@ func (this *FilscanMessages) MessagesMethods(ctx context.Context, input *filscan
 	}
 	if len(res) < 1 { //未搜索到
 		resMap := make(map[string]string)
-		blockMsg := TipsetQueue.MsgByBlockCid(blockCids)
+		// blockMsg := TipsetQueue0.MsgByBlockCid(blockCids)
+		blockMsg := flscaner.List().FindMesage_blocks(blockCids)
 		for _, value := range blockMsg {
 			resMap[value.MethodName] = value.MethodName
 		}
@@ -85,7 +86,9 @@ func (this *FilscanMessages) MessageDetails(ctx context.Context, input *filscanp
 		return resp, nil
 	}
 	if len(msgRes) < 1 {
-		filscanMsg := TipsetQueue.MsgByCid(msgCid)
+		// filscanMsg := TipsetQueue.MsgByCid(msgCid)
+		filscanMsg := flscaner.List().FindMesage_id(msgCid)
+
 		tbyte, _ := json.Marshal(filscanMsg)
 		var p models.FilscanMsgResult
 		json.Unmarshal(tbyte, &p)

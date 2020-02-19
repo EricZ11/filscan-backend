@@ -6,8 +6,11 @@ import (
 	"errors"
 	filscanproto "filscan_lotus/filscanproto"
 	"filscan_lotus/models"
-	"gitlab.forceup.in/dev-proto/common"
 	"strconv"
+	"time"
+
+	"github.com/filecoin-project/lotus/chain/types"
+	"gitlab.forceup.in/dev-proto/common"
 )
 
 var _ filscanproto.FilscanServer = (*FilscanServer)(nil)
@@ -52,12 +55,10 @@ func (this *FilscanServer) SearchIndex(ctx context.Context, input *filscanproto.
 		goto SearchPeer
 	default:
 		goto SearchActor
-		if len(res) > 0 {
-			break
-		}
 		goto SearchMsg
 		goto Search_Height
 		goto Search_Block_Hash
+		goto SearchPeer
 	}
 SearchActor:
 	{
@@ -70,6 +71,7 @@ SearchActor:
 		}
 		if actor != nil {
 			res = "actor"
+			goto End
 		}
 	}
 SearchMsg:
@@ -83,31 +85,43 @@ SearchMsg:
 		}
 		if len(msg) > 0 {
 			res = "message_ID"
+			goto End
 		} else {
-			m := TipsetQueue.MsgByCid(key)
+			// m := TipsetQueue.MsgByCid(key)
+			m := flscaner.List().FindMesage_id(key)
 			if m != nil {
 				res = "message_ID"
+				goto End
 			}
 		}
 	}
 Search_Height:
 	{
-		height, _ := strconv.ParseUint(key, 10, 64)
-		//if height > 0 && TipsetQueue.Size() > 0 && TipsetQueue.element[TipsetQueue.Size()-1].tipset.Height() > height {
-		t, err := models.GetMaxTipSet()
+		height, err := strconv.ParseUint(key, 10, 64)
 		if err != nil {
-			log("SearchIndex GetTipSetByOneHeight search err=%v", err)
-			res := &common.Result{Code: 5, Msg: "SearchIndex GetTipSetByOneHeight search err"}
-			resp.Res = res
-			return resp, nil
-		}
-		if (height > 0 && height < t.Height) || (height > 0 && TipsetQueue.Size() > 0 && TipsetQueue.element[TipsetQueue.Size()-1].tipset.Height() > height) {
-			res = "Height"
+			res = ""
 		} else {
-			e := TipsetQueue.TipsetByOneHeight(height)
-			if e != nil {
-				res = "Height"
+
+			t, err := models.GetMaxTipSet()
+			if err != nil {
+				log("SearchIndex GetTipSetByOneHeight search err=%v", err)
+				res := &common.Result{Code: 5, Msg: "SearchIndex GetTipSetByOneHeight search err"}
+				resp.Res = res
+				return resp, nil
 			}
+			// if (height > 0 && height < t.Height) || (height > 0 && TipsetQueue.Size() > 0 && TipsetQueue.element[TipsetQueue.Size()-1].Tipset.Height() > height) {
+			if (height > 0 && height < t.Height) || flscaner.List().Front().Height() > height {
+				res = "Height"
+				goto End
+			} else {
+				// e := TipsetQueue0.TipsetByOneHeight(height)
+				e := flscaner.List().FindTipset_height(height)
+				if e != nil {
+					res = "Height"
+					goto End
+				}
+			}
+
 		}
 	}
 Search_Block_Hash:
@@ -123,10 +137,13 @@ Search_Block_Hash:
 		}
 		if len(bs) > 0 {
 			res = "block_hash"
+			goto End
 		} else {
-			block := TipsetQueue.BlockByCid(key)
+			// block := TipsetQueue.BlockByCid(key)
+			block := flscaner.List().FindBlock_id(key)
 			if block != nil {
 				res = "block_hash"
+				goto End
 			}
 		}
 	}
@@ -141,8 +158,10 @@ SearchPeer:
 		}
 		if peer != nil {
 			res = "peer_id"
+			goto End
 		}
 	}
+End:
 
 	resp.Res = common.NewResult(3, msg)
 	resp.Data = &filscanproto.SearchIndexResp_Data{ModelFlag: res}
@@ -171,7 +190,7 @@ func (this *FilscanServer) BaseInformation(ctx context.Context, input *common.Em
 			resp.Res = &common.Result{Code: 5, Msg: "GetMsgCount search err"}
 			return resp, nil
 		}
-		tipsetCount, err := models.GetTipsetCountByMinCreat(models.TimeNow - 60*60*24)
+		tipsetCount, err := models.GetTipsetCountByMinTime(models.TimeNow - 60*60*24)
 		if err != nil {
 			log("GetTipsetCount search err=%v", err)
 			resp.Res = &common.Result{Code: 5, Msg: "GetTipsetCount search err"}
@@ -193,8 +212,10 @@ func (this *FilscanServer) BaseInformation(ctx context.Context, input *common.Em
 				return resp, nil
 			}
 		}
-		if TipsetQueue.Size() > 0 {
-			lotusBaseInformation.TipsetHeight = TipsetQueue.element[len(TipsetQueue.element)-1].tipset.Height()
+		// if TipsetQueue.Size() > 0 {
+		if flscaner.List().Size() > 0 {
+			// lotusBaseInformation.TipsetHeight = TipsetQueue.element[len(TipsetQueue.element)-1].Tipset.Height()
+			lotusBaseInformation.TipsetHeight = flscaner.List().Front().Height()
 		} else {
 			lotusBaseInformation.TipsetHeight = tipset.Height()
 			if tipset.Height() < 1 {
@@ -202,7 +223,8 @@ func (this *FilscanServer) BaseInformation(ctx context.Context, input *common.Em
 				lotusBaseInformation.TipsetHeight = res.Height
 			}
 		}
-		allMsg := TipsetQueue.AllMsg()
+		// allMsg := TipsetQueue.AllMsg()
+		allMsg := flscaner.List().MesageAll()
 		var cashTotalPrice, cashTotalSize uint64
 		for _, value := range allMsg {
 			cashTotalPrice += value.Message.GasPrice.Uint64()
@@ -213,10 +235,14 @@ func (this *FilscanServer) BaseInformation(ctx context.Context, input *common.Em
 			count := msgCount + len(allMsg)
 			lotusBaseInformation.AvgMessageSize = float64(totalSize+cashTotalSize) / float64(count)
 		}
-		if (tipsetCount + TipsetQueue.Size()) > 0 {
-			lotusBaseInformation.AvgMessagesTipset = float64((msgCount + len(allMsg)) / (tipsetCount + TipsetQueue.Size()))
+		// if (tipsetCount + TipsetQueue.Size()) > 0 {
+		cache_size := flscaner.List().Size()
+		if (tipsetCount + cache_size) > 0 {
+			// DBMsgCount, _ := models.GetMsgCountByMsgMinCreat(0)
+			// lotusBaseInformation.AvgMessagesTipset = float64((DBMsgCount + len(allMsg)) / (tipsetCount + TipsetQueue.Size()))
+			lotusBaseInformation.AvgMessagesTipset = Round(float64(msgCount+len(allMsg))/float64(tipsetCount+cache_size), 0, false)
 		}
-		latestReward, err := models.GetLatestReward()
+		latestReward, err := GetLatestBlockReward()
 		if err != nil {
 			log("GetLatestReward search err=%v", err)
 			lotusBaseInformation.BlockReward = 0
@@ -268,10 +294,11 @@ func (this *FilscanServer) BlocktimeGraphical(ctx context.Context, input *filsca
 	}
 	var bts []*filscanproto.Blocktime
 	var totalBlockCount int
-	var min string
-	var max string
-	var firstIndex int
-	var flag bool
+	//var min string
+	//var max string
+	//var firstIndex int64
+	//var flag bool
+	totaltime := 0.0
 	for key := range tArr {
 		blocktime := new(filscanproto.Blocktime)
 		start := tArr[key]
@@ -292,15 +319,16 @@ func (this *FilscanServer) BlocktimeGraphical(ctx context.Context, input *filsca
 		if bms == 0 {
 			continue
 		}
-		if bms > 0 && !flag {
-			firstIndex = key
-		}
+		//if bms > 0 && !flag {
+		//	firstIndex = key
+		//}
 		totalBlockCount += bms
 		blocktime.Time = start
 		if bms > 0 {
 			t := RoundString(float64((end-start))/float64(bms), 0, false)
+			totaltime += float64((end - start)) / float64(bms)
 			blocktime.BlockTime = t
-			if !flag {
+			/*if !flag {
 				max = t
 				min = t
 				flag = true
@@ -311,20 +339,39 @@ func (this *FilscanServer) BlocktimeGraphical(ctx context.Context, input *filsca
 				if t < min {
 					min = t
 				}
-			}
+			}*/
 		} else {
 			blocktime.BlockTime = "0"
 		}
 		bts = append(bts, blocktime)
 	}
-	avgBlockTimeCash.Min = min
-	avgBlockTimeCash.Max = max
+	var min, max float64
+	for key, value := range bts {
+		t, _ := strconv.ParseFloat(value.BlockTime, 64)
+		if key == 0 {
+			max = t
+			min = t
+			continue
+		}
+		if t > max {
+			max = t
+		}
+		if t < min {
+			min = t
+		}
+
+	}
+
+	avgBlockTimeCash.Min = strconv.FormatFloat(min, 'f', -1, 64)
+	avgBlockTimeCash.Max = strconv.FormatFloat(max, 'f', -1, 64)
 	avgBlockTimeCash.TotalBlockCount = totalBlockCount
 	avgBlockTimeCash.Time = endTime
 	avgBlockTimeCash.BlockTime = bts
-	avgBlockTimeCash.AvgBlockTime = RoundString(float64(models.TimeNow-tArr[firstIndex])/float64(int64(totalBlockCount)), 0, false)
-	resp.Data = &filscanproto.BlocktimeGraphicalResp_Data{Data: bts, AvgBlocktime: RoundString(float64(models.TimeNow-tArr[firstIndex])/float64(int64(totalBlockCount)), 0, false),
-		Max: max, Min: min}
+
+	avgBlockTimeCash.AvgBlockTime = RoundString(totaltime/float64(len(bts)), 0, false)
+
+	resp.Data = &filscanproto.BlocktimeGraphicalResp_Data{Data: bts, AvgBlocktime: avgBlockTimeCash.AvgBlockTime,
+		Max: strconv.FormatFloat(max, 'f', -1, 64), Min: strconv.FormatFloat(min, 'f', -1, 64)}
 	resp.Res = common.NewResult(3, "success")
 	return resp, nil
 }
@@ -419,6 +466,75 @@ func (this *FilscanServer) AvgBlockheaderSizeGraphical(ctx context.Context, inpu
 	return resp, nil
 }
 
+func (fs *FilscanServer) TotalPowerGraphical(ctx context.Context, req *filscanproto.TotalPowerGraphicalReq) (*filscanproto.TotalPowerGraphicalResp, error) {
+	resp := new(filscanproto.TotalPowerGraphicalResp)
+
+	var endTime = req.GetTime()
+	if endTime == 0 {
+		endTime = time.Now().Unix()
+	}
+	if endTime-totalPowerCash.Time <= totalPowerCash.CashTime {
+		resp.Data = &filscanproto.TotalPowerGraphicalResp_Data{Data: totalPowerCash.Data, StorageCapacity: totalPowerCash.StorageCapacity}
+		resp.Res = common.NewResult(3, "success")
+		return resp, nil
+	}
+
+	startTime := endTime - 24*60*60
+	tArr, _ := GetIntHour(startTime, endTime)
+	if len(tArr) > 25 || len(tArr) < 1 {
+		res := &common.Result{Code: 5, Msg: "Length of Time Err"}
+		resp.Res = res
+		return resp, nil
+	} else {
+		tArr = append(tArr, endTime)
+	}
+	resp.Data = &filscanproto.TotalPowerGraphicalResp_Data{
+		Data:            []*filscanproto.TotalPowerGraphical{},
+		StorageCapacity: 0.00,
+	}
+	/*for i := uint64(0); i < RepeateTime && time_at > 0; i++ {
+		powerStates, err := models.GetTotalpowerAtTime(time_at)
+		if err != nil {
+			log("GetMsgByBlockMethodBeginxCount err =%v", err)
+			resp.Res = common.NewResult( 5,"search err")
+			return nil, err
+		}
+		t := new(TotalPowerGraphical)
+		if powerStates != nil && powerStates.TotalPower != nil {
+			t.Power = powerStates.TotalPower.Int64()
+		} else {
+			t.Power = 0
+		}
+		t.Time = int64(time_at)
+		resp.Data.Data = append(resp.Data.Data, t)
+		time_at = time_at - TimeDiff
+	}*/
+	for _, val := range tArr {
+		powerStates, err := models.GetTotalpowerAtTime(uint64(val))
+		if err != nil {
+			log("GetMsgByBlockMethodBeginxCount err =%v", err)
+			resp.Res = common.NewResult(5, "search err")
+			return nil, err
+		}
+		t := new(filscanproto.TotalPowerGraphical)
+		if powerStates != nil && powerStates.TotalPower != nil {
+			t.Power = powerStates.TotalPower.Int64()
+		} else {
+			t.Power = 0
+		}
+		t.Time = val
+		resp.Data.Data = append(resp.Data.Data, t)
+	}
+	//for i := 0; i < len(resp.Data.Data)/2; i++ {
+	//	resp.Data.Data[i], resp.Data.Data[len(resp.Data.Data)-i-1] = resp.Data.Data[len(resp.Data.Data)-i-1], resp.Data.Data[i]
+	//}
+	resp.Data.StorageCapacity = float64(resp.Data.Data[len(resp.Data.Data)-1].Power)
+	totalPowerCash.Time = endTime
+	totalPowerCash.StorageCapacity = resp.Data.StorageCapacity
+	totalPowerCash.Data = resp.Data.Data
+	return resp, nil
+}
+
 func GetIntHour(startTime, endTime int64) (timeArr []int64, err error) {
 	if endTime <= startTime {
 		return nil, errors.New("endTime <= startTime ")
@@ -499,7 +615,18 @@ func FilscanBlockResult2PtotoFilscanBlock(f models.FilscanBlockResult) *filscanp
 	for _, value := range f.MsgCids {
 		res.MsgCids = append(res.MsgCids, value.Str)
 	}
+
 	res.Reward = f.BlockReword
+
+	// if f.BlockReword == "0" {
+	// 	res.Reward = f.BlockReword
+	// } else {
+	// 	if tipsetReward, err := types.BigFromString(f.BlockReword); err!=nil {
+	// 		log("error, bigfrom string('%s') faild,message:%s\n", f.BlockReword, err.Error())
+	// 	} else {
+	// 		res.Reward = types.FIL(tipsetReward).String()
+	// 	}
+	// }
 	return res
 }
 
@@ -514,13 +641,21 @@ func FilscanResMsg2PtotoFilscanMessage(m models.FilscanMsgResult) *filscanproto.
 	//res.GasUsed = m.GasUsed
 	res.Return = m.Return
 	res.MethodName = m.MethodName
+	//res.ActorName = m.ActorName
+	//res.Param = m.Param
 
 	msg := new(filscanproto.Message)
 	msg.To = m.Message.To
 	msg.From = m.Message.From
 	msg.Nonce = m.Message.Nonce
 	//f64 ,_ := strconv.ParseFloat(m.Message.Value,64)
-	msg.Value = m.Message.Value
+	if m.Message.Value == "0" {
+		msg.Value = m.Message.Value
+	} else {
+		msgValue, _ := types.BigFromString(m.Message.Value)
+		msg.Value = types.FIL(msgValue).String()
+	}
+
 	msg.Gasprice = m.Message.GasPrice
 	msg.Gaslimit = m.Message.GasLimit
 	msg.Method = strconv.Itoa(m.Message.Method)

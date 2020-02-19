@@ -1,16 +1,16 @@
 package filscaner
 
 import (
+	"fmt"
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
 func (fs *Filscaner) ChainHeadTest() {
-	tipset, err := fs.api.ChainHead(fs.ctx)
-	if err!=nil {
-		fs.Printf("chian head failed, message:%s\n", err.Error())
-		return
+	if tipset, err := fs.api.ChainHead(fs.ctx); err!=nil {
+		panic(fmt.Sprintf("chian head failed, message:%s\n", err.Error()))
+	} else {
+		fs.DisplayTipset(tipset)
 	}
-	fs.DisplayTipset(tipset)
 }
 
 func (fs *Filscaner) DisplayTipset(tipset *types.TipSet) {
@@ -23,7 +23,7 @@ func (fs *Filscaner) ChainTipsetByHeightTest() {
 	var tipset *types.TipSet
 
 	tipset, err := fs.api.ChainGetTipSetByHeight(fs.ctx, 100, nil)
-	if err!=nil {
+	if err != nil {
 		fs.Printf("get tipsetbyheight(10000) failed, message:%s", err.Error())
 		return
 	}
@@ -43,27 +43,3 @@ func (fs *Filscaner) ChainTipsetByHeightTest() {
 	// fs.api.StateMinerSectors()
 }
 
-
-func (fs *Filscaner) NotifierTest(n int) {
-	fs.Task_StartHandleMessage()
-	fs.Task_StartHandleHeadChange()
-	if notifer, err := fs.api.ChainNotify(fs.ctx); err!=nil {
-		fs.Printf("notify failed, message:%s\n", err.Error())
-		return
-	} else {
-		for i:=0; i<n; i++ {
-			fs.Printf("---------------crcle index = %d\n", i)
-			select {
-			case headers, isok := <-notifer:
-				if !isok { continue }
-				for _, header := range headers {
-					fs.Printf("get new header = %d\n", header.Val.Height())
-					fs.head_notifier <- header
-				}
-			// default:
-				// time.Sleep(time.Second * 5)
-				// fs.Printf("sleep 1 second\n")
-			}
-		}
-	}
-}

@@ -2,6 +2,8 @@ package models
 
 import (
 	"encoding/json"
+	fspt "filscan_lotus/filscanproto"
+	"filscan_lotus/utils"
 	"fmt"
 	"github.com/filecoin-project/go-address"
 	"github.com/globalsign/mgo"
@@ -61,11 +63,9 @@ func (mbig *BsonBigint) SetBSON(raw bson.Raw) error {
 	return nil
 }
 
-type MinerStateInTipset struct {
+type MinerStateAtTipset struct {
 	PeerId            string      `bson:"peer_id" json:"peer_id"`
-	MinerCreate       string      `bson:"miner_create" json:"miner_create"`
 	MinerAddr         string      `bson:"miner_addr" json:"miner_addr"`
-	NickName          string      `bson:"nick_name" json:"nick_name"`
 	BlockCount        uint64      `bson:"block_count" json:"block_count"`
 	Power             *BsonBigint `bson:"power" json:"power"`
 	TotalPower        *BsonBigint `bson:"total_power" json:"total_power"`
@@ -82,12 +82,23 @@ type MinerStateInTipset struct {
 	GmtModified int64 `bson:"gmt_modified" json:"gmt_modified"`
 }
 
+func (this *MinerStateAtTipset) State() *fspt.MinerState {
+	if this == nil {
+		return nil
+	}
+	return &fspt.MinerState{
+		Address:      this.MinerAddr,
+		Power:        utils.XSizeString(this.Power.Int),
+		PowerPercent: utils.BigToPercent(this.Power.Int, this.TotalPower.Int),
+		PeerId:       this.PeerId}
+}
+
 func BulkUpsertMiners(miners []interface{}) error {
-	_, err := BulkUpsert(MinerCollection, miners)
+	_, err := BulkUpsert(nil, MinerCollection, miners)
 	return err
 }
 
-func UpsertMinerStateInTipset(miner *MinerStateInTipset) error {
+func UpsertMinerStateInTipset(miner *MinerStateAtTipset) error {
 	go func() {
 		err := UpdateIsOwnerByAdress(miner.WalletAddr)
 		if err != nil {
@@ -102,8 +113,8 @@ func UpsertMinerStateInTipset(miner *MinerStateInTipset) error {
 	return err
 }
 
-func FindMinerStateAtTipset(address address.Address, tipset_height uint64) (*MinerStateInTipset, error) {
-	miner := &MinerStateInTipset{}
+func FindMinerStateAtTipset(address address.Address, tipset_height uint64) (*MinerStateAtTipset, error) {
+	miner := &MinerStateAtTipset{}
 
 	query := bson.M{"miner_addr": address.String()}
 	if tipset_height > 0 {
@@ -137,9 +148,9 @@ func MinerListByWalletAddr(walletAddress string) (res []string, err error) {
 	return
 }
 
-func MinerByAddress(address string) (miner *MinerStateInTipset, err error) {
+func MinerByAddress(address string) (miner *MinerStateAtTipset, err error) {
 	q := bson.M{"miner_addr": address}
-	var res []*MinerStateInTipset
+	var res []*MinerStateAtTipset
 	err = FindSortLimit(MinerCollection, "-mine_time", q, nil, &res, 0, 1)
 	if err != nil {
 		return
@@ -150,9 +161,9 @@ func MinerByAddress(address string) (miner *MinerStateInTipset, err error) {
 	return res[0], nil
 }
 
-func MinerByPeerId(address string) (miner *MinerStateInTipset, err error) {
+func MinerByPeerId(address string) (miner *MinerStateAtTipset, err error) {
 	q := bson.M{"peer_id": address}
-	var res []*MinerStateInTipset
+	var res []*MinerStateAtTipset
 	err = FindAll(MinerCollection, q, nil, &res)
 	if err != nil {
 		return
@@ -172,7 +183,7 @@ func HaveMinerStateAt(address string, tipset_height uint64) bool {
 	return count > 0
 }
 
-func GetMinerstateActivateAtTime(attime uint64) ([]*MinerStateInTipset, error) {
+func GetMinerstateActivateAtTime(attime uint64) ([]*MinerStateAtTipset, error) {
 	ms, c := Connect(MinerCollection)
 	defer ms.Close()
 
@@ -200,7 +211,7 @@ func GetMinerstateActivateAtTime(attime uint64) ([]*MinerStateInTipset, error) {
 	if err != nil {
 		return nil, err
 	}
-	var minerStates = make([]*MinerStateInTipset, len(records))
+	var minerStates = make([]*MinerStateAtTipset, len(records))
 	for index, record := range records {
 		minerStates[index] = record.Record
 	}
@@ -209,7 +220,7 @@ func GetMinerstateActivateAtTime(attime uint64) ([]*MinerStateInTipset, error) {
 
 type MinerStateRecord struct {
 	Id     string              `bson:"_id" json:"id"`
-	Record *MinerStateInTipset `bson:"record" json:"record"`
+	Record *MinerStateAtTipset `bson:"record" json:"record"`
 }
 
 func ToMineState(in interface{}) ([]MinerStateRecord, error) {
@@ -231,9 +242,9 @@ db.miner.find({
 }).sort({"mine_time":-1}).skip(0).limit(1)
 */
 
-func GetTotalpowerAtTime(timestop uint64) (*MinerStateInTipset, error) {
+func GetTotalpowerAtTime(timestop uint64) (*MinerStateAtTipset, error) {
 	q := bson.M{"mine_time": bson.M{"$lte": timestop}}
-	var res []*MinerStateInTipset
+	var res []*MinerStateAtTipset
 	err := FindSortLimit(MinerCollection, "-mine_time", q, nil, &res, 0, 1)
 	if err != nil {
 		return nil, err
@@ -242,24 +253,6 @@ func GetTotalpowerAtTime(timestop uint64) (*MinerStateInTipset, error) {
 		return res[0], nil
 	} else {
 		return nil, nil
-	}
-}
-
-func Create_miner_index() {
-	ms, c := Connect(MinerCollection)
-	defer ms.Close()
-
-	ms.SetMode(mgo.Monotonic, true)
-
-	indexs := []mgo.Index{
-		{Key: []string{"miner_addr"}, Unique: false, Background: true},
-		{Key: []string{"mine_time"}, Unique: false, Background: true},
-		{Key: []string{"peer_id"}, Unique: false, Background: true},
-	}
-	for _, index := range indexs {
-		if err := c.EnsureIndex(index); err != nil {
-			panic(err)
-		}
 	}
 }
 

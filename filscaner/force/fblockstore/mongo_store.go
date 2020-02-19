@@ -7,8 +7,11 @@ import (
 	"io"
 	"time"
 
-	"github.com/filecoin-project/lotus/chain/actors"
+	"filscan_lotus/filscaner/force/factors"
+	"filscan_lotus/filscaner/force/fblockstore/encoding"
+	"filscan_lotus/filscaner/force/ftypes"
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
@@ -18,9 +21,6 @@ import (
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	logging "github.com/ipfs/go-log"
 	cbg "github.com/whyrusleeping/cbor-gen"
-	"filscan_lotus/controllers/filscaner/force/factors"
-	"filscan_lotus/controllers/filscaner/force/fblockstore/encoding"
-	"filscan_lotus/controllers/filscaner/force/ftypes"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/urfave/cli.v2"
 )

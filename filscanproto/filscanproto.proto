@@ -72,7 +72,7 @@ service Filscan {
     rpc BlocktimeGraphical (StartEndTimeReq) returns (BlocktimeGraphicalResp) {};
 
     //    rpc TotalPowerGraphical (StartEndTimeReq) returns (TotalPowerGraphicalResp) {};
-
+    rpc TotalPowerGraphical (TotalPowerGraphicalReq) returns (TotalPowerGraphicalResp) {};
     //Newly increased
     rpc AvgBlockheaderSizeGraphical (StartEndTimeReq) returns (AvgBlockheaderSizeGraphicalResp) {};
 
@@ -85,10 +85,11 @@ service Filscan {
 
 service FilscanToken {
     option (common.api_prefix) = "token";
-    rpc  FilNetworkBlockReward (FutureBlockRewardReq) returns (FutureBlockRewardResp) {};
+    rpc FilNetworkBlockReward (FutureBlockRewardReq) returns (FutureBlockRewardResp) {};
     rpc CumulativeBlockRewardsOverTime (CBROReq) returns (CBROResp) {};
     rpc FilOutStanding(FilOutstandReq) returns (FiloutstandResp) {};
-    rpc  MinerRewards(MinerRewardsReq) returns (MinerRewardsResp){};
+    rpc MinerRewards(MinerRewardsReq) returns (MinerRewardsResp){};
+    rpc BalanceIncreased(BalanceIncreaseReq) returns (BalanceIncreaseResp){};
 }
 
 service FilscanMining {
@@ -103,7 +104,7 @@ service FilscanMining {
     rpc TopnBlockMiners(TopnBlockMinersReq) returns (TopnBlockMinersResp) {};
     //    rpc EvolutionTopMinersBlock (EvolutionTopMinersBlockReq) returns (EvolutionTopMinersBlockResp) {};
     //    rpc StorageMiningConsensusDetail (StorageMiningConsensusDetailReq) returns (StorageMiningConsensusDetailResp) {};
-    rpc TotalPowerGraphical (TotalPowerGraphicalReq) returns (TotalPowerGraphicalResp) {};
+//    rpc TotalPowerGraphical (TotalPowerGraphicalReq) returns (TotalPowerGraphicalResp) {};
 }
 
 message FutureBlockRewardReq {
@@ -546,6 +547,7 @@ message BlockByMinerResp{
     message Data {
         repeated FilscanBlock blocks = 1;
         int64 total =2;
+        string total_fil =3;
     }
     common.Result res = 1;
     Data data = 2;
@@ -613,7 +615,7 @@ message FilscanBlock{
     //    int64 weight = 3;
     int64 size = 4;
     repeated string msg_cids=5 ;
-    double reward =6;
+    string reward =6;
 
 }
 
@@ -869,6 +871,25 @@ message MinerRewardsResp {
     common.Result res = 1;
     message Data {
         map<string, MinerRewards> miner_rewards = 1;
+    }
+    Data data = 2;
+}
+
+message BalanceIncreaseReq {
+    uint64 time_start = 1;
+    uint64 time_end = 2;
+    string address = 3;
+}
+
+message BalanceIncreaseResp {
+    common.Result res = 1;
+    message Data {
+        string balance_increased = 1;
+        string address = 2;
+        uint64 time_start = 3;
+        uint64 time_end = 4;
+        uint64 tipset_height_start = 5;
+        uint64 tipset_heigth_end = 6;
     }
     Data data = 2;
 }

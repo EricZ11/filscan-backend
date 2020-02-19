@@ -4,6 +4,7 @@ import (
 	inner_err "filscan_lotus/error"
 	. "filscan_lotus/filscanproto"
 	"filscan_lotus/models"
+	"filscan_lotus/utils"
 	"fmt"
 	"github.com/filecoin-project/go-address"
 	"github.com/globalsign/mgo"
@@ -25,12 +26,11 @@ type Models_Block_reward struct {
 	ReleasedRewards *models.BsonBigint `bson:"reward"`
 }
 
-// func NewModelsBlockReward(height uint64, releasedReward *big.Int) *Models_Block_reward {
-// 	x := models.BsonBigint{}
-// 	return &Models_Block_reward{Height:height, ReleasedRewards:x}
-// }
+func (fs *Filscaner) do_upsert_miners() error {
+	if fs.to_update_miner_index <= 0 {
+		return nil
+	}
 
-func (fs *Filscaner) do_update_miners() error {
 	var offset uint64
 
 	if fs.to_update_miner_index >= fs.to_update_miner_size {
@@ -45,11 +45,11 @@ func (fs *Filscaner) do_update_miners() error {
 	return nil
 }
 
-func (fs *Filscaner) models_update_miner(miner *models.MinerStateInTipset) error {
+func (fs *Filscaner) models_update_miner(miner *models.MinerStateAtTipset) error {
 	var err error
 
 	if fs.to_update_miner_index >= fs.to_update_miner_size {
-		if err = fs.do_update_miners(); err != nil {
+		if err = fs.do_upsert_miners(); err != nil {
 			return err
 		}
 	}
@@ -62,17 +62,12 @@ func (fs *Filscaner) models_update_miner(miner *models.MinerStateInTipset) error
 	fs.to_upsert_miners[offset] = bson.M{"miner_addr": miner.MinerAddr, "tipset_height": miner.TipsetHeight}
 	fs.to_upsert_miners[offset+1] = miner
 	fs.to_update_miner_index++
-	// models.UpsertMinerStateInTipset(miner)
+
 	return nil
 }
 
-// func (fs *Filscaner) init_synced_heigth() (err error) {
-// 	fs.synced_height, err = models.MaxBlockHegith()
-// 	return
-// }
-
 func (fs *Filscaner) models_get_minerstate_at_tipset(address address.Address,
-	tipset_height uint64) (*models.MinerStateInTipset, error) {
+	tipset_height uint64) (*models.MinerStateAtTipset, error) {
 	return models.FindMinerStateAtTipset(address, tipset_height)
 }
 
@@ -121,27 +116,48 @@ type mashalMinerStateInTipset struct {
 	GmtModified int64 `bson:"gmt_modified" json:"gmt_modified"`
 }
 
-// func (fs *Filscaner) models_search_miner_address(address string) (*models.MinerStateInTipset, error) {
-// 	ms, c := models.Connect(models.MinerCollection)
-// 	defer ms.Close()
-//
-// 	marshal_miner := &mashalMinerStateInTipset{}
-// 	err := c.Find(bson.M{"miner_addr": address}).Sort("-mine_time").Limit(1).One(&marshal_miner)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	miner := &models.MinerStateInTipset{}
-//
-// 	if err := UnmarshalJSON(marshal_miner, miner); err != nil {
-// 		return nil, err
-// 	}
-//
-// 	return miner, nil
-// }
+func Models_miner_state_in_time(c *mgo.Collection, miners []string, at, start uint64) ([]*models.MinerStateAtTipset, error) {
+	miner_size := len(miners)
+	if miner_size == 0 {
+		return nil, nil
+	}
+
+	if c == nil {
+		var session *mgo.Session
+		session, c = models.Connect(models.MinerCollection)
+		defer session.Close()
+	}
+
+	q_res := struct {
+		Miners []*models.MinerStateAtTipset `bson:"miners"`
+	}{}
+
+	q_pipe := []bson.M{
+		{"$match": bson.M{"mine_time": bson.M{"$gt": start, "$lte": at}, "miner_addr": bson.M{"$in": miners}}},
+		{"$sort": bson.M{"mine_time": -1}},
+		{"$group": bson.M{"_id": bson.M{"miner_addr": "$miner_addr"}, "miner": bson.M{"$first": "$$ROOT"}}},
+		{"$group": bson.M{"_id": nil, "miners": bson.M{"$push": "$miner"}}},
+	}
+
+	colation := &mgo.Collation{Locale: "zh", NumericOrdering: true}
+	if err := c.Pipe(q_pipe).Collation(colation).AllowDiskUse().One(&q_res); err != nil {
+		return nil, err
+	}
+
+	return q_res.Miners, nil
+}
+
+func models_miner_state_exist_newer(miner string, time int64) bool {
+	c, err := models.FindCount(models.MinerCollection,
+		bson.M{"miner_addr": miner, "mine_time": bson.M{"$gt": time}}, nil)
+	if err != nil {
+		return false
+	}
+	return c > 0
+}
 
 // todo: use a loop to search miner instead of use '$match in ...', which may improve proformance
-func (fs *Filscaner) get_miner_power_increased_within_time_range(miners []string, start, end uint64) (map[string]*MinerIncreasedPowerRecord, error) {
+func (fs *Filscaner) models_miner_power_increase_in_time(miners []string, start, end uint64) (map[string]*MinerIncreasedPowerRecord, error) {
 	if start >= end {
 		return nil, inner_err.ErrInvalidParam
 	}
@@ -150,8 +166,18 @@ func (fs *Filscaner) get_miner_power_increased_within_time_range(miners []string
 	defer ms.Close()
 
 	var match = bson.M{}
-	if len(miners) != 0 {
-		match["miner_addr"] = bson.M{"$in": miners}
+	miner_size := len(miners)
+	if miner_size != 0 {
+		if true {
+			ors := make([]bson.M, miner_size)
+			for index, m := range miners {
+				ors[index] = bson.M{"miner_addr": m}
+			}
+			// {$match:{$or:[{"miner_addr":"to1234"},{"miner_addr":"t01111"}]}},
+			match = bson.M{"$or": ors}
+		} else {
+			match = bson.M{"miner_addr": bson.M{"$in": miners}}
+		}
 	}
 
 	var mine_time_match bson.M
@@ -189,7 +215,7 @@ func (fs *Filscaner) get_miner_power_increased_within_time_range(miners []string
 	return res, nil
 }
 
-func (fs *Filscaner) get_totalpower_at_time(timestop uint64) (*models.MinerStateInTipset, error) {
+func (fs *Filscaner) get_totalpower_at_time(timestop uint64) (*models.MinerStateAtTipset, error) {
 	ms, c := models.Connect(models.MinerCollection)
 	defer ms.Close()
 	match := bson.M{}
@@ -217,20 +243,23 @@ func (fs *Filscaner) get_totalpower_at_time(timestop uint64) (*models.MinerState
 	}
 
 	records := []models.MinerStateRecord{}
-	if err := UnmarshalJSON(res, &records); err != nil {
+	if err := utils.UnmarshalJSON(res, &records); err != nil {
 		return nil, err
 	}
 	return records[0].Record, nil
 }
 
-func (fs *Filscaner) get_miner_topn_power(attime, ofset, limit uint64) ([]*models.MinerStateInTipset, uint64, error) {
-	ms, c := models.Connect(models.MinerCollection)
-	defer ms.Close()
+func models_miner_top_power(c *mgo.Collection, time_at, ofset, limit int64) ([]*models.MinerStateAtTipset, uint64, error) {
+	if c == nil {
+		var session *mgo.Session
+		session, c = models.Connect(models.MinerCollection)
+		defer session.Close()
+	}
 
 	q_match := bson.M{}
 
-	if attime != 0 {
-		q_match = bson.M{"mine_time": bson.M{"$lt": attime}}
+	if time_at != 0 {
+		q_match = bson.M{"mine_time": bson.M{"$lt": time_at}}
 	}
 
 	q_count := []bson.M{
@@ -239,6 +268,7 @@ func (fs *Filscaner) get_miner_topn_power(attime, ofset, limit uint64) ([]*model
 		{"$group": bson.M{"_id": "", "count": bson.M{"$sum": 1}}},
 	}
 
+	colation := &mgo.Collation{Locale: "zh", NumericOrdering: true}
 	// db.miner.aggregate([
 	// {"$match": {"mine_time":{"$lt":1577176373}}},
 	// {"$sort": {"tipset_height": -1, "power": -1}},
@@ -250,7 +280,7 @@ func (fs *Filscaner) get_miner_topn_power(attime, ofset, limit uint64) ([]*model
 	// {"$skip": 0},
 	// {"$limit": 10}])
 	q_count_res := struct{ Count uint64 }{}
-	if err := c.Pipe(q_count).Collation(fs.colation).AllowDiskUse().One(&q_count_res); err != nil {
+	if err := c.Pipe(q_count).Collation(colation).AllowDiskUse().One(&q_count_res); err != nil {
 		return nil, 0, err
 	}
 
@@ -267,14 +297,14 @@ func (fs *Filscaner) get_miner_topn_power(attime, ofset, limit uint64) ([]*model
 	}
 
 	var res = []struct {
-		Record *models.MinerStateInTipset `json:"record" bson:"record"`
+		Record *models.MinerStateAtTipset `json:"record" bson:"record"`
 	}{}
 
-	if err := c.Pipe(q_result).Collation(fs.colation).AllowDiskUse().All(&res); err != nil {
+	if err := c.Pipe(q_result).Collation(colation).AllowDiskUse().All(&res); err != nil {
 		return nil, 0, err
 	}
 
-	miners := make([]*models.MinerStateInTipset, len(res))
+	miners := make([]*models.MinerStateAtTipset, len(res))
 
 	for index, miner := range res {
 		miners[index] = miner.Record
@@ -289,8 +319,8 @@ func (fs *Filscaner) delete_minerstate_at(tipset_height uint64) error {
 		bson.M{"tipset_height": tipset_height})
 }
 
-func (fs *Filscaner) get_minerstate_lte2(address address.Address, smollerthan uint64) ([]*models.MinerStateInTipset, error) {
-	miner := []*models.MinerStateInTipset{}
+func (fs *Filscaner) get_minerstate_lte2(address address.Address, smollerthan uint64) ([]*models.MinerStateAtTipset, error) {
+	miner := []*models.MinerStateAtTipset{}
 	err := models.FindSortLimit(models.MinerCollection, "-tipset_height",
 		bson.M{
 			"tipset_height": bson.M{"$lte": smollerthan},
@@ -300,40 +330,29 @@ func (fs *Filscaner) get_minerstate_lte2(address address.Address, smollerthan ui
 	return miner, err
 }
 
-func (fs *Filscaner) to_resp_miner(miner *models.MinerStateInTipset) *MinerState {
-	if miner == nil {
-		return nil
-	}
-	return &MinerState{
-		Address:      miner.MinerAddr,
-		Power:        XSizeString(miner.Power.Int),
-		PowerPercent: BigToPercent(miner.Power.Int, miner.TotalPower.Int),
-		PeerId:       miner.PeerId}
-}
-
-func (fs *Filscaner) to_resp_slice(in []*models.MinerStateInTipset) []*MinerState {
+func (fs *Filscaner) to_resp_slice(in []*models.MinerStateAtTipset) []*MinerState {
 	var minerStates = make([]*MinerState, len(in))
 	for index, miner := range in {
-		minerStates[index] = fs.to_resp_miner(miner)
+		minerStates[index] = miner.State()
 	}
 	return minerStates
 }
 
-func (fs *Filscaner) to_resp_map(in map[string]*models.MinerStateInTipset) map[string]*MinerState {
+func (fs *Filscaner) to_resp_map(in map[string]*models.MinerStateAtTipset) map[string]*MinerState {
 	var minerStates = make(map[string]*MinerState)
 
 	for k, miner := range in {
 		minerStates[k] = &MinerState{
 			Address:      miner.MinerAddr,
-			Power:        XSizeString(miner.Power.Int),
-			PowerPercent: BigToPercent(miner.Power.Int, miner.TotalPower.Int),
+			Power:        utils.XSizeString(miner.Power.Int),
+			PowerPercent: utils.BigToPercent(miner.Power.Int, miner.TotalPower.Int),
 			PeerId:       miner.PeerId,
 		}
 	}
 	return minerStates
 }
 
-func (fs *Filscaner) get_minerstate_activate_at_time(attime uint64) ([]*models.MinerStateInTipset, error) {
+func (fs *Filscaner) get_minerstate_activate_at_time(attime uint64) ([]*models.MinerStateAtTipset, error) {
 	ms, c := models.Connect(models.MinerCollection)
 	defer ms.Close()
 
@@ -354,11 +373,11 @@ func (fs *Filscaner) get_minerstate_activate_at_time(attime uint64) ([]*models.M
 	}
 
 	records := []models.MinerStateRecord{}
-	if err := UnmarshalJSON(res, &records); err != nil {
+	if err := utils.UnmarshalJSON(res, &records); err != nil {
 		return nil, err
 	}
 
-	var minerStates = make([]*models.MinerStateInTipset, len(records))
+	var minerStates = make([]*models.MinerStateAtTipset, len(records))
 	for index, record := range records {
 		minerStates[index] = record.Record
 	}
@@ -531,19 +550,27 @@ func (fs *Filscaner) models_miner_block_top_n(start, end, offset, limit uint64) 
 	return q_miner_res, q_count_res.MinerCount, nil
 }
 
-func (fs *Filscaner) models_get_last_tipset_time_before(time_at uint64) (uint64, error) {
+func (fs *Filscaner) models_get_tipset_at_time(time_at uint64, befor bool) (uint64, error) {
 	res := []*struct {
 		Height uint64 `json:"height" bson:"height"`
 	}{}
 
-	err := models.FindSortLimit("tipset", "-mine_time", bson.M{"mine_time": bson.M{"$lte": time_at}},
+	cond := "$gte"
+	sort := "mine_time"
+
+	if befor {
+		cond = "$lt"
+		sort = "-mine_time"
+	}
+
+	err := models.FindSortLimit("tipset", sort, bson.M{"mine_time": bson.M{cond: time_at}},
 		bson.M{"height": 1}, &res, 0, 1)
 	if err != nil {
 		return 0, err
 	}
 
 	if len(res) > 0 {
-
+		return res[0].Height, nil
 	}
 	return 0, nil
 }
@@ -683,8 +710,8 @@ func (ml *Models_minerlist) APIRespData() *MinerListResp_Data {
 			IncreasedBlock:   m.MinedBlockCount,
 			Miner:            m.MinerAddress,
 			PeerId:           m.PeerId,
-			PowerPercent:     FloatToPercent(m.IncreasedPower, ml.TotalIncreasedPower),
-			BlockPercent:     IntToPercent(m.MinedBlockCount, ml.TotalMinedBlockCount),
+			PowerPercent:     utils.FloatToPercent(m.IncreasedPower, ml.TotalIncreasedPower),
+			BlockPercent:     utils.IntToPercent(m.MinedBlockCount, ml.TotalMinedBlockCount),
 			MiningEfficiency: m.MiningEfficiency,
 			StorageRate:      m.PowerRate,
 		}
@@ -747,15 +774,15 @@ func (ml *Models_minerlist) Len() int {
 }
 
 func (ml *Models_minerlist) less_mining_efficency(i, j int) bool {
-	if ml.Miners[i].MiningEfficiency=="+Inf" {
+	if ml.Miners[i].MiningEfficiency == "+Inf" {
 		return true
 	}
-	if ml.Miners[j].MiningEfficiency=="+Inf" {
+	if ml.Miners[j].MiningEfficiency == "+Inf" {
 		return false
 	}
 
-	fi := StringToFloat(ml.Miners[i].MiningEfficiency)
-	fj := StringToFloat(ml.Miners[j].MiningEfficiency)
+	fi := utils.StringToFloat(ml.Miners[i].MiningEfficiency)
+	fj := utils.StringToFloat(ml.Miners[j].MiningEfficiency)
 	return fi < fj
 }
 
@@ -918,7 +945,7 @@ func models_bulk_upsert_block_reward(brs []*Models_Block_reward, size int) error
 		upsert_pairs[i*2+1] = br
 	}
 
-	_, err := models.BulkUpsert(models.BlockRewardCollection, upsert_pairs)
+	_, err := models.BulkUpsert(nil, models.BlockRewardCollection, upsert_pairs)
 	return err
 }
 
@@ -975,26 +1002,9 @@ func models_miner_heights(min, max uint64) (map[uint64]struct{}, error) {
 	return heights_map, nil
 }
 
-const collection_min_synced_height = "min_synced_height"
-
-type models_min_synced_height struct {
-	MinHeight uint64 `bson:"min_height"`
+type models_miner_attime struct {
 }
 
-func models_get_synced_min_height() (uint64, error) {
-	ms, c := models.Connect(collection_min_synced_height)
-	defer ms.Close()
+func models_minerinfo_at_time() {
 
-	min_height := &models_min_synced_height{}
-
-	err := c.Find(nil).One(min_height)
-	return min_height.MinHeight, err
-}
-
-func models_upsert_synced_height(height uint64) error {
-	ms, c := models.Connect(collection_min_synced_height)
-	defer ms.Close()
-
-	_, err := c.Upsert(nil, &models_min_synced_height{MinHeight: height})
-	return err
 }

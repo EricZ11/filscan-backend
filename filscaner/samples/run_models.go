@@ -1,28 +1,20 @@
 package main
 
 import (
-	"filscan_lotus/controllers"
 	"filscan_lotus/models"
+	"filscan_lotus/utils"
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
-	"log"
 
-	. "filscan_lotus/controllers/filscaner"
+	. "filscan_lotus/filscaner"
 )
 
-type MongoLog struct{}
-
-func (MongoLog) Output(calldepth int, s string) error {
-	log.SetFlags(log.Lshortfile)
-	return log.Output(calldepth, s)
-}
-
 func init() {
-	controllers.MongoDBInit()
+	models.Db_init(utils.GetConfiger())
 	mgo.SetLogger(new(MongoLog))
 }
 
-func main__() {
+func main() {
 	models_miner_power_increase_top_n(1576741815, 1576992780, 0, 1)
 }
 
@@ -63,7 +55,7 @@ func models_miner_power_increase_top_n(start, end, offset, limit uint64) (uint64
 	}
 
 	records := []*MinerIncreasedPowerRecord{}
-	if err := UnmarshalJSON(&q_res, &records); err != nil {
+	if err := utils.UnmarshalJSON(&q_res, &records); err != nil {
 		panic(err)
 	}
 

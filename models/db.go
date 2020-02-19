@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"github.com/astaxie/beego/config"
 	"log"
 	"time"
 
@@ -26,7 +27,29 @@ func TimenowInit() {
 	return
 }
 
-func init() { }
+func Db_init(config config.Configer) {
+	host := config.String("mongoHost")
+	user := config.String("mongoUser")
+	pass := config.String("mongoPass")
+	mongoDB := config.String("mongoDB")
+	mgosession := GetGlobalSession(host, user, pass, mongoDB)
+	_, err := mgosession.DatabaseNames()
+	if err != nil {
+		panic(ps("mongoInit fail:%v", err))
+	}
+	DB = mongoDB
+
+	Create_block_index()
+	Create_block_reward_index()
+
+	Create_tipset_index()
+	Create_peer_index()
+	Create_msg_index()
+	Create_block_index()
+	Create_account_index()
+	Create_Tipset_Rewards_Index()
+	Create_miner_index()
+}
 
 func GetGlobalSession(host, user, pass, mongoDB string) *mgo.Session {
 	dialInfo := &mgo.DialInfo{
@@ -49,6 +72,12 @@ func connect(collection string) (*mgo.Session, *mgo.Collection) {
 	return s, c
 }
 
+func Copy() (*mgo.Session, *mgo.Database) {
+	s := globalS.Copy()
+	db := s.DB(DB)
+	return s, db
+}
+
 func Connect(collection string) (*mgo.Session, *mgo.Collection) {
 	return connect(collection)
 }
@@ -59,9 +88,18 @@ func Insert(collection string, docs ...interface{}) error {
 	return c.Insert(docs...)
 }
 
-func BulkUpsert(collection string, docs []interface{}) (*mgo.BulkResult, error) {
-	ms, c := connect(collection)
-	defer ms.Close()
+func BulkUpsert(c *mgo.Collection, c_name string, docs []interface{}) (*mgo.BulkResult, error) {
+	if c == nil {
+		var s *mgo.Session
+		s, c = connect(c_name)
+		defer func(session *mgo.Session) {
+			session.Close()
+		}(s)
+	}
+	if c == nil {
+		return nil, fmt.Errorf("connection is nil")
+	}
+
 	bulk := c.Bulk()
 	bulk.Upsert(docs[:]...)
 	return bulk.Run()

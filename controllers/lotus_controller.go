@@ -2,16 +2,10 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
-	"filscan_lotus/controllers/filscaner"
 	"filscan_lotus/models"
 	"filscan_lotus/utils"
-	"fmt"
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/ipfs/go-cid"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -20,8 +14,11 @@ var SyncChain int64
 var TipsetQueueSize int
 var DBHaveTipset map[uint64]bool //数据库已有tipset map
 
+func FirstSynLotus() {}
+
+/*
 func FirstSynLotus() {
-	TipsetQueue = NewQueue()
+	TipsetQueue0 = NewQueue()
 	syncChain := conf("syncChain")
 	SyncChain, _ = strconv.ParseInt(syncChain, 10, 64)
 	tipsetQueueSize := conf("tipsetQueueSize")
@@ -72,11 +69,13 @@ func SynLotus() {
 
 	go func() { //start write mongo
 		for {
-			d := TipsetQueue.Size() - TipsetQueueSize
+			// d := TipsetQueue.Size() - TipsetQueueSize
+			d := TipsetQueue().Size() - TipsetQueueSize
 			if d > 0 {
-				eList := TipsetQueue.GetHeaderList(d)
+				// eList := TipsetQueue.GetHeaderList(d)
+				eList := TipsetQueue().GetHeaderList(d)
 				for _, value := range eList {
-					go func(e *Element) {
+					go func(e *models.Element) {
 						SaveTipsetQueueE(e)
 					}(value)
 				}
@@ -96,28 +95,28 @@ func SynLotus() {
 	//}()
 }
 
-func SaveTipsetQueueE(e *Element) error {
-	bmList := e.blocks
+func SaveTipsetQueueE(e *models.Element) error {
+	bmList := e.Blocks
 	for _, value := range bmList {
-		err := models.InsertFilscanBlock(value.block)
+		err := models.InsertFilscanBlock(value.Block)
 		if err != nil && len(err.Error()) > 6 && err.Error()[:6] != "E11000" {
 			log("SynLotus InsertFilscanBlock err  = %v", err)
-			log("block = %v ", value.block.Cid)
+			log("block = %v ", value.Block.Cid)
 		}
-		if len(value.msg) > 0 {
-			err = models.UpsertFilscanMsgMulti(value.msg)
+		if len(value.Msg) > 0 {
+			err = models.UpsertFilscanMsgMulti(value.Msg)
 			if err != nil && len(err.Error()) > 6 && err.Error()[:6] != "E11000" {
 				log("SynLotus InsertFilscanMsgMulti err  = %v", err)
-				log("block = %v ", value.block.Cid)
+				log("block = %v ", value.Block.Cid)
 			}
 		}
 	}
-	err := models.AddTipSet(e.tipset)
+	err := models.AddTipSet(e.Tipset)
 	if err != nil {
 		log("SynLotus AddTipSet err  = %v", err)
 		return err
 	}
-	log("SaveTipsetQueue %v height=%v ,done", e.tipset.Cids(), e.tipset.Height())
+	log("SaveTipsetQueue %v height=%v ,done", e.Tipset.Cids(), e.Tipset.Height())
 	return nil
 }
 
@@ -146,8 +145,7 @@ func GetTipSetAdd(tipset *types.TipSet, msg []api.Message, msgReceipt []*types.M
 	}
 	_, ok := DBHaveTipset[tipset.Height()]
 	if ok {
-		log("Syn success tipset Height =%v ", tipset.Height())
-		//return
+		log("DBHaveTipset Height =%v ", tipset.Height())
 		parents := tipset.Parents().Cids()
 		go func(cid2 cid.Cid, msg []api.Message, msgReceipt []*types.MessageReceipt) {
 			//t, err := LotusApi.ChainGetTipSet(context.TODO(), parents[0])
@@ -187,14 +185,14 @@ func GetTipSetAdd(tipset *types.TipSet, msg []api.Message, msgReceipt []*types.M
 		return
 	}
 	for _, value := range bmList {
-		err = models.InsertFilscanBlock(value.block)
+		err = models.InsertFilscanBlock(value.Block)
 		if err != nil && len(err.Error()) > 6 && err.Error()[:6] != "E11000" {
 			log("SynLotus InsertFilscanBlock err  = %v", err)
-			log("block = %v ", value.block.Cid)
+			log("block = %v ", value.Block.Cid)
 		}
-		if len(value.msg) > 0 {
+		if len(value.Msg) > 0 {
 			if msg != nil && msgReceipt != nil {
-				for _, m := range value.msg {
+				for _, m := range value.Msg {
 					for key, msgV := range msg {
 						if m.Cid == msgV.Cid.String() {
 							rebyte, _ := json.Marshal(msgReceipt[key])
@@ -207,10 +205,10 @@ func GetTipSetAdd(tipset *types.TipSet, msg []api.Message, msgReceipt []*types.M
 					}
 				}
 			}
-			err = models.UpsertFilscanMsgMulti(value.msg)
+			err = models.UpsertFilscanMsgMulti(value.Msg)
 			if err != nil && len(err.Error()) > 6 && err.Error()[:6] != "E11000" {
 				log("SynLotus InsertFilscanMsgMulti err  = %v", err)
-				log("block = %v ", value.block.Cid)
+				log("block = %v ", value.Block.Cid)
 			}
 		}
 	}
@@ -239,6 +237,7 @@ func GetTipSetAdd(tipset *types.TipSet, msg []api.Message, msgReceipt []*types.M
 	}(parents[0], parentMessages, parentReceipts)
 	return
 }
+// */
 
 /*func AccountUpdateInsert(msg types.Message) {
 	to := msg.To
@@ -276,14 +275,19 @@ func GetTipSetAdd(tipset *types.TipSet, msg []api.Message, msgReceipt []*types.M
 	}
 }*/
 
-func Tipset2BlocksMsg(tipset *types.TipSet) (bmList []*BlockAndMsg, err error) {
+/*
+func Tipset2BlocksMsg(tipset *types.TipSet) (bmList []*models.BlockAndMsg, err error) {
 	bs := tipset.Blocks()
 	if len(bs) < 1 {
 		return
 	}
-	//var bmList []*BlockAndMsg
+	rewardBigInt := flscaner.API_block_rewards(tipset) //获取每个block奖励
+	rewardString := "0"
+	if rewardBigInt != nil && rewardBigInt.String() != "" {
+		rewardString = rewardBigInt.String()
+	}
 	for _, b := range bs {
-		bm := new(BlockAndMsg)
+		bm := new(models.BlockAndMsg)
 		msg, err := LotusApi.ChainGetBlockMessages(context.TODO(), b.Cid())
 		if err != nil {
 			log("SynLotus ChainGetBlockMessages err  = %v", err)
@@ -294,11 +298,11 @@ func Tipset2BlocksMsg(tipset *types.TipSet) (bmList []*BlockAndMsg, err error) {
 		block.Cid = b.Cid().String()
 		block.BlockHeader = b
 		block.MsgCids = msg.Cids
-		block.BlockReward = 0
+		block.BlockReward = rewardString
 		bbyte, _ := b.Serialize()
 		block.Size = int64(len(bbyte))
 		//blockList = append(blockList,block)
-		bm.block = block
+		bm.Block = block
 		if err != nil {
 			log("SynLotus InsertFilscanBlock err  = %v", err)
 			log("block = %v ", b.Cid())
@@ -320,15 +324,15 @@ func Tipset2BlocksMsg(tipset *types.TipSet) (bmList []*BlockAndMsg, err error) {
 				msgList = append(msgList, m)
 				continue
 			}
-			_, method, err := filscanerInst.ParseActorMessage(value)
+			_, method, err := filscaner.ParseActorMessage(value)
 			if err != nil {
-				log("filscanerInst.ParseActorMessage err =%v", err.Error())
+				log("flscaner.ParseActorMessage err =%v", err.Error())
 			} else {
 				m.MethodName = method.Name
 			}
 			msgList = append(msgList, m)
 		}
-		bm.msg = msgList
+		bm.Msg = msgList
 		bmList = append(bmList, bm)
 	}
 	return
@@ -350,13 +354,13 @@ func GetTipSetPushQueue(tipset *types.TipSet) {
 		return
 	}
 	// filscaner.FilscanerInst.NotifyHeaderChanged(store.HCApply, tipset)
-	var e Element
-	e.tipset = tipset
+	var e models.Element
+	e.Tipset = tipset
 	bmList, err := Tipset2BlocksMsg(tipset)
 	if err != nil {
 		return
 	}
-	e.blocks = bmList
+	e.Blocks = bmList
 	tipset.Parents()
 	parents := tipset.Parents().Cids()
 	if len(parents) < 1 {
@@ -389,172 +393,6 @@ func GetTipSetPushQueue(tipset *types.TipSet) {
 		time.Sleep(100 * time.Millisecond)
 		GetTipSetPushQueue(t)
 	}(ok, parent.Height)
-}
-
-func GetPledgeCollateral(tipset *types.TipSet) (string, error) {
-	bigInt, err := LotusApi.StatePledgeCollateral(context.TODO(), tipset)
-	return types.FIL(bigInt).String(), err
-}
-
-func GetLotusHead() (tipset *types.TipSet, err error) {
-	tipset, err = LotusApi.ChainHead(context.TODO())
-	if err != nil {
-		log("SynLotus ChainHead err = %v", err)
-		return
-	}
-	return
-}
-
-func GetActorByAddress(ad string) (actor *types.Actor, err error) {
-	if len(ad) < 1 {
-		return
-	}
-	address, err := address.NewFromString(ad)
-	if err != nil {
-		return
-	}
-	tipset, err := LotusApi.ChainHead(context.TODO())
-	if err != nil {
-		ps("get ActorByAddress failed, message:%s\n", err.Error())
-		return nil, err
-	}
-	actor, err = LotusApi.StateGetActor(context.TODO(), address, tipset)
-	return
-}
-
-func SavePeers() (err error) {
-	res, err := GetNetPeers()
-	if err != nil {
-		log("SavePeers err =%v", err)
-		return
-	}
-	geoIpUserId := conf("geoIpUserId")
-	geoIpKey := conf("geoIpKey")
-	var peers []*models.Peer
-	for _, value := range res {
-		res, err := models.GetPeerByPeerId(value.Ip) //peer is have
-		if err != nil {
-			log("GetPeerByPeerId err =%v", err)
-			continue
-		}
-		if res != nil && models.TimeNow-res.GmtModified < 7*24*60*60 { //latest update time > 1 week
-			models.UpdatePeerGmtModifiedByPeerId(res.PeerId)
-			continue
-		}
-		info, err := utils.GetIpDetails(geoIpUserId, geoIpKey, value.Ip)
-		if err != nil || info == nil {
-			log("err =%v ,info=%v", err, info)
-			continue
-		}
-		value.LocationCN = info.LocationCN
-		value.LocationEN = info.LocationEN
-		value.Longitude = info.Longitude
-		value.Latitude = info.Latitude
-		peers = append(peers, value)
-	}
-	err = models.InsertPeerMulti(peers)
-	if err != nil {
-		log("InsertPeer err = [%v]", err)
-		return err
-	}
-	return nil
-}
-
-func GetNetPeers() ([]*models.Peer, error) {
-	if LotusCommonApi == nil {
-		return nil, nil
-	}
-	peers, err := LotusCommonApi.NetPeers(context.TODO())
-
-	if err != nil {
-		log("GetNetPeers err=%v", err)
-	}
-	var res []*models.Peer
-	for _, value := range peers {
-		p := new(models.Peer)
-		if len(value.Addrs) > 0 {
-			p.IpAddr = value.Addrs[0].String()
-			// /ip4/192.168.0.102/tcp/53814   len=5
-			ipArr := strings.Split(value.Addrs[0].String(), "/")
-			if len(ipArr) > 3 {
-				p.Ip = ipArr[2]
-			}
-		}
-		p.PeerId = ps("%v", value.ID)
-		res = append(res, p)
-	}
-	return res, nil
-}
-
-func UpdateAccountInfo(startTime *int64) error {
-	accountMap := make(map[string]string)
-	fromArr, err := models.GetDistinctFromAddressByTime(*startTime, models.TimeNow)
-	if err != nil {
-		return err
-	}
-	toArr, err := models.GetDistinctToAddressByTime(*startTime, models.TimeNow)
-	if err != nil {
-		return err
-	}
-	minerArr, err := models.GetDistinctMinerAddressByTime(*startTime, models.TimeNow)
-	if err != nil {
-		return err
-	}
-	OwnerArr, err := models.GetDistinctWalletAddressByTime(*startTime, models.TimeNow)
-	if err != nil {
-		return err
-	}
-	for _, value := range fromArr {
-		if value[0:2] == "t3" {
-			accountMap[value] = "wallet"
-		} else {
-			accountMap[value] = "account"
-		}
-	}
-	for _, value := range toArr {
-		if value[0:2] == "t3" {
-			accountMap[value] = "wallet"
-		} else {
-			accountMap[value] = "account"
-		}
-	}
-	for _, value := range minerArr {
-		accountMap[value] = "miner"
-	}
-	for _, value := range OwnerArr {
-		accountMap[value] = "owner"
-	}
-	var accountlist []*models.Account
-	for k, value := range accountMap {
-		ac := new(models.Account)
-		switch value {
-		case "miner":
-			ac.IsMiner = true
-		case "wallet":
-			ac.IsWallet = true
-		case "owner":
-			ac.IsOwner = true
-		}
-		ac.Address = k
-		accountlist = append(accountlist, ac)
-	}
-	for k, account := range accountlist {
-		log("%v", k)
-		Actor, err := GetActorByAddress(account.Address)
-		if err != nil {
-			log("GetActorByAddress err = %v", err)
-			continue
-		}
-		accountlist[k].Actor = Actor
-	}
-	err = models.UpsertAccountArr(accountlist)
-	if err != nil {
-		log("UpsertAccountArr err = %v", err)
-		return err
-	}
-	t := time.Now().Unix()
-	startTime = &t
-	return nil
 }
 
 func GetStateListMiners() {
@@ -712,4 +550,197 @@ func TestUpsertAccount() {
 		}
 	}
 
+}
+// */
+func init() {
+	go func() {
+		time.Sleep(11 * time.Second)
+		//GetStateListMiners()
+		//GetStateListActors()
+		//GetWalletActor()
+		//GetWalletList()
+		//GetWalletBalance()
+		//TestUpsertAccount()
+		//GetNetPeers()
+		//SavePeers()
+		//GetParentMsgReceipts()
+		var a int64
+		UpdateAccountInfo(&a)
+	}()
+}
+func UpdateAccountInfo(startTime *int64) error {
+	accountMap := make(map[string]string)
+	fromArr, err := models.GetDistinctFromAddressByTime(*startTime, models.TimeNow)
+	if err != nil {
+		return err
+	}
+	toArr, err := models.GetDistinctToAddressByTime(*startTime, models.TimeNow)
+	if err != nil {
+		return err
+	}
+	minerArr, err := models.GetDistinctMinerAddressByTime(*startTime, models.TimeNow)
+	if err != nil {
+		return err
+	}
+	OwnerArr, err := models.GetDistinctWalletAddressByTime(*startTime, models.TimeNow)
+	if err != nil {
+		return err
+	}
+	BlockMinerArr, err := models.GetDistinctMinerByTime(*startTime, models.TimeNow)
+	if err != nil {
+		return err
+	}
+
+	for _, value := range fromArr {
+		if value[0:2] == "t3" {
+			accountMap[value] = "wallet"
+		} else {
+			accountMap[value] = "account"
+		}
+	}
+	for _, value := range toArr {
+		if value[0:2] == "t3" {
+			accountMap[value] = "wallet"
+		} else {
+			accountMap[value] = "account"
+		}
+	}
+	for _, value := range minerArr {
+		accountMap[value] = "miner"
+	}
+	for _, value := range OwnerArr {
+		accountMap[value] = "owner"
+	}
+	for _, value := range BlockMinerArr {
+		accountMap[value] = "miner"
+	}
+	var accountlist []*models.Account
+	for k, value := range accountMap {
+		ac := new(models.Account)
+		switch value {
+		case "miner":
+			ac.IsMiner = true
+		case "wallet":
+			ac.IsWallet = true
+		case "owner":
+			ac.IsOwner = true
+		}
+		ac.Address = k
+		accountlist = append(accountlist, ac)
+	}
+	for k, account := range accountlist {
+		Actor, err := GetActorByAddress(account.Address)
+		if err != nil && err.Error() == "handler: websocket connection closed" {
+			log("GetAc UpdateAccountInfotorByAddress err = %v,actor=%v ", err, account.Address)
+			return err
+		}
+		if err != nil {
+			log("GetAc UpdateAccountInfotorByAddress err = %v,actor=%v,isminer= %v ,iswallet= %v ,isowner= %v  ", err, account.Address, account.IsMiner, account.IsWallet, account.IsOwner)
+			continue
+		}
+		accountlist[k].Actor = Actor
+	}
+	err = models.UpsertAccountArr(accountlist)
+	if err != nil {
+		log("UpsertAccountArr err = %v", err)
+		return err
+	}
+	t := time.Now().Unix()
+	startTime = &t
+	return nil
+}
+
+func SavePeers() (err error) {
+	res, err := GetNetPeers()
+	if err != nil {
+		log("SavePeers err =%v", err)
+		return
+	}
+	geoIpUserId := conf("geoIpUserId")
+	geoIpKey := conf("geoIpKey")
+	var peers []*models.Peer
+	for _, value := range res {
+		res, err := models.GetPeerByPeerId(value.Ip) //peer is have
+		if err != nil {
+			log("GetPeerByPeerId err =%v", err)
+			continue
+		}
+		if res != nil && models.TimeNow-res.GmtModified < 7*24*60*60 { //latest update time > 1 week
+			models.UpdatePeerGmtModifiedByPeerId(res.PeerId)
+			continue
+		}
+		info, err := utils.GetIpDetails(geoIpUserId, geoIpKey, value.Ip)
+		if err != nil || info == nil {
+			log("err =%v ,info=%v", err, info)
+			continue
+		}
+		value.LocationCN = info.LocationCN
+		value.LocationEN = info.LocationEN
+		value.Longitude = info.Longitude
+		value.Latitude = info.Latitude
+		peers = append(peers, value)
+	}
+	err = models.InsertPeerMulti(peers)
+	if err != nil {
+		log("InsertPeer err = [%v]", err)
+		return err
+	}
+	return nil
+}
+
+func GetNetPeers() ([]*models.Peer, error) {
+	if LotusCommonApi == nil {
+		return nil, nil
+	}
+	peers, err := LotusCommonApi.NetPeers(context.TODO())
+
+	if err != nil {
+		log("GetNetPeers err=%v", err)
+	}
+	var res []*models.Peer
+	for _, value := range peers {
+		p := new(models.Peer)
+		if len(value.Addrs) > 0 {
+			p.IpAddr = value.Addrs[0].String()
+			// /ip4/192.168.0.102/tcp/53814   len=5
+			ipArr := strings.Split(value.Addrs[0].String(), "/")
+			if len(ipArr) > 3 {
+				p.Ip = ipArr[2]
+			}
+		}
+		p.PeerId = ps("%v", value.ID)
+		res = append(res, p)
+	}
+	return res, nil
+}
+
+func GetActorByAddress(ad string) (actor *types.Actor, err error) {
+	if len(ad) < 1 {
+		return
+	}
+	address, err := address.NewFromString(ad)
+	if err != nil {
+		return
+	}
+	tipset, err := LotusApi.ChainHead(context.TODO())
+	if err != nil {
+		ps("get ActorByAddress failed, message:%s\n", err.Error())
+		return nil, err
+	}
+	actor, err = LotusApi.StateGetActor(context.TODO(), address, tipset)
+	return
+}
+
+func GetLotusHead() (tipset *types.TipSet, err error) {
+	tipset, err = LotusApi.ChainHead(context.TODO())
+	if err != nil {
+		log("SynLotus ChainHead err = %v", err)
+		return
+	}
+	return
+}
+
+func GetPledgeCollateral(tipset *types.TipSet) (string, error) {
+	bigInt, err := LotusApi.StatePledgeCollateral(context.TODO(), tipset)
+	return types.FIL(bigInt).String(), err
 }

@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-// Include  StateListActors interface data（Miner） 、produce msg wallet
+// Include  StateListActors interface data（Miner） 、produce Msg wallet
 type Account struct {
 	Address string       `bson:"address" json:"address"`
 	Actor   *types.Actor `bson:"actor" json:"actor"`
@@ -123,6 +123,9 @@ func UpsertAccountArr(accounts []*Account) (err error) {
 				return
 			}
 		} else {
+			if account.Actor == nil {
+				continue
+			}
 			res[0].Actor.Balance = account.Actor.Balance.String()
 			res[0].Actor.Code.Str = account.Actor.Code.String()
 			res[0].Actor.Nonce = account.Actor.Nonce

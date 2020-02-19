@@ -163,21 +163,3 @@ func TestGetSumSizeByMsgMinCreat(t *testing.T) {
 	fmt.Println(gotTotal)
 
 }
-
-func TestGetMsgByAddressFromToMethodCount(t *testing.T) {
-	gotTotal, err := GetMsgByAddressFromToMethodCount("t05337", "", "")
-	if err != nil {
-		t.Errorf("GetMsgByAddressFromToMethodCount() error = %v ", err)
-		return
-	}
-	fmt.Println(gotTotal)
-}
-
-func TestGetMsgMethod(t *testing.T) {
-	gotTotal, err := GetMsgMethod([]string{"bafy2bzacearkzeohwforku45s4yn5t5dqztmps3tqznk3sesupic6x6jgk5fi"})
-	if err != nil {
-		t.Errorf("GetMsgByAddressFromToMethodCount() error = %v ", err)
-		return
-	}
-	fmt.Println(gotTotal)
-}

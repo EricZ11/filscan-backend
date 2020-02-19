@@ -13,28 +13,23 @@ import (
 	"time"
 )
 
-type Element struct {
-	tipset *types.TipSet
-	blocks []*BlockAndMsg
-}
-
-type BlockAndMsg struct {
-	block *models.FilscanBlock
-	msg   []*models.FilscanMsg
-}
+// type models.Element struct {
+// 	tipset *types.TipSet
+// 	blocks []*models.BlockAndMsg
+// }
 
 type TipSetQueue interface {
-	UpdatePush(e Element) //向队列中添加元素
-	Poll() Element        //移除队列中最前面的元素
+	UpdatePush(e models.Element) //向队列中添加元素
+	Poll() models.Element        //移除队列中最前面的元素
 	Clear() bool          //清空队列
 	Size() int            //获取队列的元素个数
 	IsEmpty() bool        //判断队列是否是空
 	Have() int
-	AllElement() []Element
+	AllElement() []models.Element
 }
 
 type SliceEntry struct {
-	element []*Element
+	element []*models.Element
 	lock    sync.Locker
 	isLock  bool
 }
@@ -55,15 +50,15 @@ func (entry *SliceEntry) Unlock() {
 
 //向队列中更新/添加元素
 //bool 表示是否继续向下 获取新的tipset 置入
-func (entry *SliceEntry) UpdatePush(e *Element, parentHeight uint64) bool {
+func (entry *SliceEntry) UpdatePush(e *models.Element, parentHeight uint64) bool {
 	entry.Lock()
 	defer entry.Unlock()
 
 	if index := entry.Have(e); index > 0 {
-		if len(entry.element[index].blocks) == len(e.blocks) {
-			for _, blocks := range e.blocks {
-				for _, elementvalue := range entry.element[index].blocks {
-					if blocks.block.Cid == elementvalue.block.Cid {
+		if len(entry.element[index].Blocks) == len(e.Blocks) {
+			for _, blocks := range e.Blocks {
+				for _, elementvalue := range entry.element[index].Blocks {
+					if blocks.Block.Cid == elementvalue.Block.Cid {
 						continue
 					} else {
 						entry.element[index] = e //同一高度 原值 与 新值不同，所以依旧向下获取
@@ -79,32 +74,18 @@ func (entry *SliceEntry) UpdatePush(e *Element, parentHeight uint64) bool {
 	} else {
 		entry.element = append(entry.element, e)
 		sort.Slice(entry.element, func(i, j int) bool {
-			return entry.element[i].tipset.Height() < entry.element[j].tipset.Height()
+			return entry.element[i].Tipset.Height() < entry.element[j].Tipset.Height()
 		})
 	}
-	for i := 1; e.tipset.Height()-uint64(i) > parentHeight; i++ { //分叉链:父节点 与当前节点 之前跳高
-		entry.DelTipsetByHeight(e.tipset.Height() - uint64(i))
+	for i := 1; e.Tipset.Height()-uint64(i) > parentHeight; i++ { //分叉链:父节点 与当前节点 之前跳高
+		entry.DelTipsetByHeight(e.Tipset.Height() - uint64(i))
 	}
 	//fmt.Println(">>>>>>>>>>>>>>>>>>", entry.Size(), "<<<<<<<<<<<<<<<<<<<<<")
 	return true
 }
 
-//移除队列中最前面的额元素
-func (entry *SliceEntry) Poll() *Element {
-	entry.Lock()
-	defer entry.Unlock()
-
-	if entry.IsEmpty() {
-		fmt.Println("queue is empty!")
-		return &Element{}
-	}
-	firstElement := entry.element[0]
-	entry.element = entry.element[1:]
-	return firstElement
-}
-
 //获取前N个元素   并移除
-func (entry *SliceEntry) GetHeaderList(num int) []*Element {
+func (entry *SliceEntry) GetHeaderList(num int) []*models.Element {
 	entry.Lock()
 	defer entry.Unlock()
 	if entry.Size() < num {
@@ -115,24 +96,6 @@ func (entry *SliceEntry) GetHeaderList(num int) []*Element {
 	return headerElement
 }
 
-//获取 e 应该存放的 index   其实可以与Have（待续
-func (entry *SliceEntry) RightIndex(e *Element) int {
-	entry.Lock()
-	defer entry.Unlock()
-	if entry.Size() < 1 {
-		return 0
-	}
-	var difference, index int
-	for key, value := range entry.element {
-		d := int(value.tipset.Height() - e.tipset.Height()) //获取比给定 height 最邻近height 的 index
-		if d > 0 && d < difference {
-			difference = d
-			index = key
-		}
-	}
-	return index
-}
-
 func (entry *SliceEntry) Clear() bool {
 	entry.Lock()
 	defer entry.Unlock()
@@ -141,7 +104,7 @@ func (entry *SliceEntry) Clear() bool {
 		return false
 	}
 	for i := 0; i < entry.Size(); i++ {
-		entry.element[i] = &Element{}
+		entry.element[i] = &models.Element{}
 	}
 	entry.element = nil
 	return true
@@ -166,20 +129,20 @@ func (entry *SliceEntry) BlockSize() int {
 	}
 	var blockSize int
 	for _, value := range entry.element {
-		blockSize += len(value.blocks)
+		blockSize += len(value.Blocks)
 	}
 	return blockSize
 }
 
 //All block order by height desc
-func (entry *SliceEntry) AllBlock() []*BlockAndMsg {
+func (entry *SliceEntry) AllBlock() []*models.BlockAndMsg {
 	entry.Lock()
 	defer entry.Unlock()
 	len := entry.Size()
-	var res []*BlockAndMsg
+	var res []*models.BlockAndMsg
 	for key, _ := range entry.element {
 		oneTipset := entry.element[len-1-key]
-		for _, b := range oneTipset.blocks {
+		for _, b := range oneTipset.Blocks {
 			res = append(res, b)
 		}
 	}
@@ -194,26 +157,13 @@ func (entry *SliceEntry) AllMsg() []*models.FilscanMsg {
 	var res []*models.FilscanMsg
 	for key, _ := range entry.element {
 		oneTipset := entry.element[len-1-key]
-		for _, b := range oneTipset.blocks {
-			for _, m := range b.msg {
+		for _, b := range oneTipset.Blocks {
+			for _, m := range b.Msg {
 				res = append(res, m)
 			}
 		}
 	}
 	return res
-}
-
-//msg Size
-func (entry *SliceEntry) MsgSize() int {
-	entry.Lock()
-	defer entry.Unlock()
-	var msgSize int
-	for _, value := range entry.element {
-		for _, b := range value.blocks {
-			msgSize += len(b.msg)
-		}
-	}
-	return msgSize
 }
 
 func (entry *SliceEntry) IsEmpty() bool {
@@ -226,21 +176,21 @@ func (entry *SliceEntry) IsEmpty() bool {
 }
 
 //height is have
-func (entry *SliceEntry) Have(e *Element) int {
+func (entry *SliceEntry) Have(e *models.Element) int {
 	entry.Lock()
 	defer entry.Unlock()
 	if entry.Size() < 1 {
 		return -1
 	}
 	for key, value := range entry.element {
-		if value.tipset.Height() == e.tipset.Height() {
+		if value.Tipset.Height() == e.Tipset.Height() {
 			return key
 		}
 	}
 	return -1
 }
 
-func (entry *SliceEntry) AllElement() []*Element {
+func (entry *SliceEntry)AllElement() []*models.Element {
 	//if !entry.isLock {
 	//	entry.isLock = true
 	//	defer entry.Unlock()
@@ -252,8 +202,8 @@ func (entry *SliceEntry) AllElement() []*Element {
 	return entry.element
 }
 
-//获取 tipsetElement begindex , count
-func (entry *SliceEntry) TipSetElement(start, end int) []*Element {
+//获取 tipsetmodels.Element begindex , count
+func (entry *SliceEntry) TipSetElement(start, end int) []*models.Element {
 	entry.Lock()
 	defer entry.Unlock()
 	len := entry.Size()
@@ -268,17 +218,17 @@ func (entry *SliceEntry) TipSetElement(start, end int) []*Element {
 }
 
 //获取其中 部分 待优化
-func (entry *SliceEntry) BlockByIndex(start, end int) []*BlockAndMsg {
+func (entry *SliceEntry) BlockByIndex(start, cout int) []*models.BlockAndMsg {
 	entry.Lock()
 	defer entry.Unlock()
 	all := entry.AllBlock()
 	if len(all) < start {
 		return nil
 	}
-	if start+end >= len(all) {
+	if start+cout >= len(all) {
 		return all[start:]
 	}
-	return all[start : start+end]
+	return all[start : start+cout]
 }
 
 //BlockByMinerArr sort by height desc
@@ -288,10 +238,10 @@ func (entry *SliceEntry) SortBlockByMinerArr(minerArr []string) []*models.Filsca
 	var res []*models.FilscanBlock
 	len := entry.Size()
 	for i := 0; i < len; i++ {
-		for _, b := range entry.element[len-1-i].blocks { // queue is height desc
+		for _, b := range entry.element[len-1-i].Blocks { // queue is height desc
 			for _, miner := range minerArr {
-				if b.block.BlockHeader.Miner.String() == miner {
-					res = append(res, b.block)
+				if b.Block.BlockHeader.Miner.String() == miner {
+					res = append(res, b.Block)
 					break // not be other miner
 				}
 			}
@@ -321,8 +271,8 @@ func (entry *SliceEntry) MsgByAddressFromToMethodName(address, fromTo, methodNam
 	var res []*models.FilscanMsg
 	for key, _ := range entry.element {
 		oneTipset := entry.element[lenS-1-key]
-		for _, b := range oneTipset.blocks {
-			for _, m := range b.msg {
+		for _, b := range oneTipset.Blocks {
+			for _, m := range b.Msg {
 				switch fromTo {
 				case "from":
 					if m.Message.From.String() == address {
@@ -354,13 +304,13 @@ func (entry *SliceEntry) MsgByAddressFromToMethodName(address, fromTo, methodNam
 	return res
 }
 
-func (entry *SliceEntry) BlockByCid(cid string) *BlockAndMsg {
+func (entry *SliceEntry) BlockByCid(cid string) *models.BlockAndMsg {
 	entry.Lock()
 	defer entry.Unlock()
 	//var res []*BlockAndMsg
 	for _, value := range entry.element {
-		for _, b := range value.blocks {
-			if b.block.Cid == cid {
+		for _, b := range value.Blocks {
+			if b.Block.Cid == cid {
 				return b
 			}
 		}
@@ -373,8 +323,8 @@ func (entry *SliceEntry) MsgByCid(cid string) *models.FilscanMsg {
 	defer entry.Unlock()
 	//var res []*BlockAndMsg
 	for _, value := range entry.element {
-		for _, b := range value.blocks {
-			for _, m := range b.msg {
+		for _, b := range value.Blocks {
+			for _, m := range b.Msg {
 				if m.Cid == cid {
 					return m
 				}
@@ -390,9 +340,9 @@ func (entry *SliceEntry) MsgByBlockCid(blockCids []string) []*models.FilscanMsg 
 	var res []*models.FilscanMsg
 	for _, cid := range blockCids {
 		for _, value := range entry.element {
-			for _, b := range value.blocks {
-				if b.block.Cid == cid {
-					res = append(res, b.msg...)
+			for _, b := range value.Blocks {
+				if b.Block.Cid == cid {
+					res = append(res, b.Msg...)
 					break
 				}
 			}
@@ -402,14 +352,14 @@ func (entry *SliceEntry) MsgByBlockCid(blockCids []string) []*models.FilscanMsg 
 	return res
 }
 
-func (entry *SliceEntry) TipsetByOneHeight(Height uint64) *Element {
+func (entry *SliceEntry) TipsetByOneHeight(Height uint64) *models.Element {
 	entry.Lock()
 	defer entry.Unlock()
-	if len(entry.element) < 1 || entry.element[0].tipset.Height() > Height || entry.element[len(entry.element)-1].tipset.Height() < Height {
+	if len(entry.element) < 1 || entry.element[0].Tipset.Height() > Height || entry.element[len(entry.element)-1].Tipset.Height() < Height {
 		return nil
 	}
 	for _, value := range entry.element {
-		if value.tipset.Height() == Height {
+		if value.Tipset.Height() == Height {
 			return value
 		}
 	}
@@ -419,26 +369,26 @@ func (entry *SliceEntry) TipsetByOneHeight(Height uint64) *Element {
 func (entry *SliceEntry) DelTipsetByHeight(Height uint64) {
 	entry.Lock()
 	defer entry.Unlock()
-	if len(entry.element) < 1 || entry.element[0].tipset.Height() > Height || entry.element[len(entry.element)-1].tipset.Height() < Height {
+	if len(entry.element) < 1 || entry.element[0].Tipset.Height() > Height || entry.element[len(entry.element)-1].Tipset.Height() < Height {
 		return
 	}
 	for key, value := range entry.element {
-		if value.tipset.Height() == Height {
+		if value.Tipset.Height() == Height {
 			entry.element = append(entry.element[:key], entry.element[key+1:]...)
 		}
 	}
 	return
 }
 
-func (entry *SliceEntry) TipsetByHeight(startHeight, endHeight uint64) []*Element {
+func (entry *SliceEntry) TipsetByHeight(startHeight, endHeight uint64) []*models.Element {
 	entry.Lock()
 	defer entry.Unlock()
-	var res []*Element
+	var res []*models.Element
 	for _, value := range entry.element {
-		if value.tipset.Height() > endHeight {
+		if value.Tipset.Height() > endHeight {
 			return res
 		}
-		if value.tipset.Height() >= startHeight && value.tipset.Height() <= endHeight {
+		if value.Tipset.Height() >= startHeight && value.Tipset.Height() <= endHeight {
 			res = append(res, value)
 		}
 	}
@@ -451,7 +401,7 @@ func (entry *SliceEntry) TipsetByHeight(startHeight, endHeight uint64) []*Elemen
 //	var res []*models.FilscanMsg
 //	if len(blockCid) > 1 {
 //		for _, value := range entry.element {
-//			for _, b := range value.blocks {
+//			for _, b := range value.Blocks {
 //				if b.block.Cid == blockCid {
 //					if len(method) > 0 {
 //						for _, msg := range b.msg {
@@ -465,7 +415,7 @@ func (entry *SliceEntry) TipsetByHeight(startHeight, endHeight uint64) []*Elemen
 //		}
 //	} else {
 //		for _, value := range entry.element {
-//			for _, b := range value.blocks {
+//			for _, b := range value.Blocks {
 //				if len(method) > 0 {
 //					for _, msg := range b.msg {
 //						methodInt, _ := strconv.Atoi(method)
@@ -488,31 +438,31 @@ func (entry *SliceEntry) MsgByBlockCidMethodName(blockCid, methodName string) []
 	var res []*models.FilscanMsg
 	if len(blockCid) > 1 {
 		for _, value := range entry.element {
-			for _, b := range value.blocks {
-				if b.block.Cid == blockCid {
+			for _, b := range value.Blocks {
+				if b.Block.Cid == blockCid {
 					if len(methodName) > 0 {
-						for _, msg := range b.msg {
+						for _, msg := range b.Msg {
 							if msg.MethodName == methodName {
 								res = append(res, msg)
 							}
 						}
 					} else {
-						res = append(res, b.msg...)
+						res = append(res, b.Msg...)
 					}
 				}
 			}
 		}
 	} else {
 		for _, value := range entry.element {
-			for _, b := range value.blocks {
+			for _, b := range value.Blocks {
 				if len(methodName) > 0 {
-					for _, msg := range b.msg {
+					for _, msg := range b.Msg {
 						if msg.MethodName == methodName {
 							res = append(res, msg)
 						}
 					}
 				} else {
-					res = append(res, b.msg...)
+					res = append(res, b.Msg...)
 				}
 			}
 		}
@@ -533,14 +483,14 @@ func (entry *SliceEntry) MsgUpdateReceipt(msg []api.Message, msgReceipt []*types
 			models.UpdateMsgReceipts(ms, msR, 0)
 			return
 		}
-		if oneEle == nil || oneEle.blocks == nil {
+		if oneEle == nil || oneEle.Blocks == nil {
 			time.Sleep(3 * time.Second)
 			go entry.MsgUpdateReceipt(ms, msR, h, loop+1)
 			return
 		}
 		flag := true
-		for _, b := range oneEle.blocks {
-			for _, m := range b.msg {
+		for _, b := range oneEle.Blocks {
+			for _, m := range b.Msg {
 				for k, value := range ms {
 					if m.Cid == value.Cid.String() {
 						flag = false
