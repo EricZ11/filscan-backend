@@ -602,12 +602,12 @@ func FilscanBlockResult2PtotoFilscanBlock(f models.FilscanBlockResult) *filscanp
 	b.Parents = parents
 	b.ParentWeight = f.BlockHeader.ParentWeight
 	b.Height = int64(f.BlockHeader.Height)
-	b.ParentStateRoot = f.BlockHeader.ParentMessageReceipts.Str
+	b.ParentStateRoot = f.BlockHeader.ParentStateRoot.Str
 	b.ParentMessageReceipts = f.BlockHeader.ParentMessageReceipts.Str
 	b.Messages = f.BlockHeader.Messages.Str
 	b.BlsAggregate = &filscanproto.Signature{Type: f.BlockHeader.BLSAggregate.Type, Data: f.BlockHeader.BLSAggregate.Data}
 	b.Timestamp = int64(f.BlockHeader.Timestamp)
-	b.BlockSig = &filscanproto.Signature{Type: f.BlockHeader.BlockSig.Data, Data: f.BlockHeader.BlockSig.Type}
+	b.BlockSig = &filscanproto.Signature{Type: f.BlockHeader.BlockSig.Type, Data: f.BlockHeader.BlockSig.Data}
 	res.BlockHeader = b
 	res.Cid = f.Cid
 	//res.Weight = f.
