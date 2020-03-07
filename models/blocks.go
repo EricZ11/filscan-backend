@@ -65,6 +65,7 @@ type BlockHeader struct {
 
 	BlockSig BlockHeaderSignature `bson:"BlockSig" json:"BlockSig"`
 }
+
 type FilscanCid struct {
 	Str string `bson:"/" json:"/"`
 }
@@ -252,5 +253,18 @@ func GetDistinctMinerByTime(startTime, endTime int64) (res []string, err error) 
 	q := bson.M{"gmt_create": bson.M{"$gte": startTime, "$lte": endTime}}
 	//err = Distinct(MsgCollection, "message.Method", q, &res)
 	err = Distinct(BlocksCollection, "block_header.Miner", q, &res)
+	return
+}
+
+/**
+
+db.block.find({
+    "msg_cids./": "bafy2bzaceb3uo4ripf6ch2u6gl5xspfymwkdidufr4wnh2b53au4pss4wnmpk"
+})
+
+*/
+func GetBlockByMsg(msgCid string) (res []*FilscanBlockResult, err error) {
+	q := bson.M{"msg_cids./": msgCid}
+	err = FindAll(BlocksCollection, q, nil, &res)
 	return
 }

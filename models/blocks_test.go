@@ -39,3 +39,13 @@ func TestGetDistinctMinerByTime(t *testing.T) {
 	}
 	fmt.Println(gotRes)
 }
+
+func TestGetBlockByMsg(t *testing.T) {
+
+	gotRes, err := GetBlockByMsg("bafy2bzaceb3uo4ripf6ch2u6gl5xspfymwkdidufr4wnh2b53au4pss4wnmpk")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(gotRes)
+
+}

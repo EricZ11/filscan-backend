@@ -17,12 +17,12 @@ require (
 	github.com/ipfs/go-cid v0.0.4
 	github.com/ipfs/go-ipfs-blockstore v0.1.1
 	github.com/ipfs/go-log v1.0.1
-	github.com/libp2p/go-libp2p-core v0.2.4
+	github.com/libp2p/go-libp2p-core v0.3.0
 	github.com/savaki/geoip2 v0.0.0-20150727150920-9968b08fbf39
 	github.com/shiena/ansicolor v0.0.0-20151119151921-a422bbe96644 // indirect
 	github.com/whyrusleeping/cbor-gen v0.0.0-20200121162646-b63bacf5eaf8
-	github.com/ipfs-force-community/gosf v0.1.16
-	github.com/ipfs-force-community/common v0.1.0
+	gitlab.forceup.in/dev-go/gosf v0.1.16
+	gitlab.forceup.in/dev-proto/common v0.1.0
 	go.uber.org/zap v1.13.0
 	go4.org v0.0.0-20190313082347-94abd6928b1d
 	golang.org/x/net v0.0.0-20190921015927-1a5e07d1ff72

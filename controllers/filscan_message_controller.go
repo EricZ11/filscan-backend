@@ -80,7 +80,8 @@ func (this *FilscanMessages) MessageDetails(ctx context.Context, input *filscanp
 		return resp, nil
 	}
 	msgRes, err := models.GetMsgByMsgCid(msgCid)
-	if err != nil {
+	blocks, err2 := models.GetBlockByMsg(msgCid)
+	if err != nil || err2 != nil {
 		log("MessageDetails err = %v", err.Error())
 		resp.Res = common.NewResult(5, "search err")
 		return resp, nil
@@ -94,7 +95,14 @@ func (this *FilscanMessages) MessageDetails(ctx context.Context, input *filscanp
 		json.Unmarshal(tbyte, &p)
 		msgRes = append(msgRes, &p)
 	}
-	resp.Data = &filscanproto.MessageDetailsResp_Data{Msg: FilscanResMsg2PtotoFilscanMessage(*msgRes[0])}
+	msgDe := FilscanResMsg2PtotoFilscanMessage(*msgRes[0])
+	if msgDe != nil && len(blocks) > 0 {
+		msgDe.BlockCid = nil
+		for _, value := range blocks {
+			msgDe.BlockCid = append(msgDe.BlockCid, value.Cid)
+		}
+	}
+	resp.Data = &filscanproto.MessageDetailsResp_Data{Msg: msgDe}
 	resp.Res = common.NewResult(3, "success")
 	return resp, nil
 }

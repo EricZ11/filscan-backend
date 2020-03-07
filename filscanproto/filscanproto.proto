@@ -636,7 +636,7 @@ message FilscanMessage{
     int64 size = 3;
     int64 msgcreate =4;
     uint64 height = 5;
-    string block_cid = 6;
+    repeated string block_cid = 6;
     string exit_code = 7;
     string return = 8;
     string gas_used = 9;
