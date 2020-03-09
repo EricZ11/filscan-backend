@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/lotus/chain/types"
-	"gitlab.forceup.in/dev-proto/common"
+	"github.com/ipfs-force-community/common"
 )
 
 var _ filscanproto.FilscanServer = (*FilscanServer)(nil)
