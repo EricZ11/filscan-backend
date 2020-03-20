@@ -5,7 +5,7 @@ import (
 	"filscan_lotus/filscaner"
 	filscanproto "filscan_lotus/filscanproto"
 	"filscan_lotus/models"
-	"gitlab.forceup.in/dev-proto/common"
+	"github.com/ipfs-force-community/common"
 	"golang.org/x/net/context"
 	"strconv"
 )

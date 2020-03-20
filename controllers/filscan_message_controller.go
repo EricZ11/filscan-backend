@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"filscan_lotus/filscanproto"
 	"filscan_lotus/models"
-	"gitlab.forceup.in/dev-proto/common"
+	"github.com/ipfs-force-community/common"
 	"golang.org/x/net/context"
 )
 

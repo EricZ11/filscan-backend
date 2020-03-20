@@ -9,7 +9,7 @@ import (
 	"filscan_lotus/utils"
 	"fmt"
 	"github.com/globalsign/mgo"
-	"gitlab.forceup.in/dev-proto/common"
+	"github.com/ipfs-force-community/common"
 	"math/big"
 	"time"
 )
