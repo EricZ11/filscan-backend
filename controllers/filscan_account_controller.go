@@ -5,7 +5,7 @@ import (
 	"filscan_lotus/filscanproto"
 	"filscan_lotus/models"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/ipfs-force-community/common"
+	"gitlab.forceup.in/dev-proto/common"
 	"strconv"
 )
 

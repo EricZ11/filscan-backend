@@ -15,7 +15,7 @@ Filscan is a blockchain browser for Filecoin, which can be used to view Filecoin
     - [Run](#run)
   - [API Document](#api-document)
 
-# [Front-End](https://github.com/ipfs-force-community/filscan-frontend)
+# [Front-End](https://gitlab.forceup.in/dev-proto/filscan-frontend)
 
 
 # Back-End

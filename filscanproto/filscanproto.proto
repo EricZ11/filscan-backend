@@ -3,7 +3,7 @@ syntax = "proto3";
 package filscanproto;
 
 import "google/protobuf/descriptor.proto";
-import "github.com/ipfs-force-community/common/common.proto";
+import "gitlab.forceup.in/dev-proto/common/common.proto";
 
 service FilscanTipset{
     option (common.api_prefix) = "tipset";
