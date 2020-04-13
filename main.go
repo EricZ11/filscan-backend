@@ -7,7 +7,7 @@ import (
 	lotus_filscan "filscan_lotus/filscanproto"
 	"fmt"
 	"github.com/astaxie/beego/config"
-	"gitlab.forceup.in/dev-go/gosf/jsonrpc"
+	"github.com/ipfs-force-community/gosf/jsonrpc"
 	"go.uber.org/zap"
 	"net/http"
 )

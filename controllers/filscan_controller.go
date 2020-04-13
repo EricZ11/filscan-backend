@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/lotus/chain/types"
-	"gitlab.forceup.in/dev-proto/common"
+	"github.com/ipfs-force-community/common"
 )
 
 var _ filscanproto.FilscanServer = (*FilscanServer)(nil)
@@ -60,6 +60,7 @@ func (this *FilscanServer) SearchIndex(ctx context.Context, input *filscanproto.
 		goto Search_Block_Hash
 		goto SearchPeer
 	}
+
 SearchActor:
 	{
 		actor, err := models.GetActorByAddress(key)
@@ -602,12 +603,12 @@ func FilscanBlockResult2PtotoFilscanBlock(f models.FilscanBlockResult) *filscanp
 	b.Parents = parents
 	b.ParentWeight = f.BlockHeader.ParentWeight
 	b.Height = int64(f.BlockHeader.Height)
-	b.ParentStateRoot = f.BlockHeader.ParentStateRoot.Str
+	b.ParentStateRoot = f.BlockHeader.ParentMessageReceipts.Str
 	b.ParentMessageReceipts = f.BlockHeader.ParentMessageReceipts.Str
 	b.Messages = f.BlockHeader.Messages.Str
 	b.BlsAggregate = &filscanproto.Signature{Type: f.BlockHeader.BLSAggregate.Type, Data: f.BlockHeader.BLSAggregate.Data}
 	b.Timestamp = int64(f.BlockHeader.Timestamp)
-	b.BlockSig = &filscanproto.Signature{Type: f.BlockHeader.BlockSig.Type, Data: f.BlockHeader.BlockSig.Data}
+	b.BlockSig = &filscanproto.Signature{Type: f.BlockHeader.BlockSig.Data, Data: f.BlockHeader.BlockSig.Type}
 	res.BlockHeader = b
 	res.Cid = f.Cid
 	//res.Weight = f.
@@ -627,6 +628,7 @@ func FilscanBlockResult2PtotoFilscanBlock(f models.FilscanBlockResult) *filscanp
 	// 		res.Reward = types.FIL(tipsetReward).String()
 	// 	}
 	// }
+
 	return res
 }
 
@@ -636,7 +638,7 @@ func FilscanResMsg2PtotoFilscanMessage(m models.FilscanMsgResult) *filscanproto.
 	res.Cid = m.Cid
 	res.Msgcreate = int64(m.MsgCreate)
 	res.Height = m.Height
-	res.BlockCid = m.BlockCid
+	res.BlockCid = append(res.BlockCid, m.BlockCid)
 	res.ExitCode = m.ExitCode
 	//res.GasUsed = m.GasUsed
 	res.Return = m.Return
@@ -649,7 +651,7 @@ func FilscanResMsg2PtotoFilscanMessage(m models.FilscanMsgResult) *filscanproto.
 	msg.From = m.Message.From
 	msg.Nonce = m.Message.Nonce
 	//f64 ,_ := strconv.ParseFloat(m.Message.Value,64)
-	if m.Message.Value == "0" {
+	if m.Message.Value == "0" || m.Message.Value == "" {
 		msg.Value = m.Message.Value
 	} else {
 		msgValue, _ := types.BigFromString(m.Message.Value)

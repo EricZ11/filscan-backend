@@ -16,20 +16,21 @@ const (
 )
 
 type FilscanMsg struct {
-	Message       types.Message `bson:"message" json:"message"`
-	Cid           string        `bson:"cid" json:"cid"`
-	BlockCid      string        `bson:"block_cid" json:"block_cid"`
-	ActorName     string        `bson:"actor_name" json:"actor_name"`
-	MethodName    string        `bson:"method_name" json:"method_name"`
-	ExitCode      string        `bson:"exit_code" json:"exit_code"` //默认值 不应为 0
-	Return        string        `bson:"return" json:"return"`
-	GasUsed       string        `bson:"gas_used" json:"gas_used"`
-	RequiredFunds types.BigInt  `bson:"required_funds" json:"required_funds"`
-	Size          int64         `bson:"size" json:"size"`
-	Height        uint64        `bson:"height" json:"height"`
-	MsgCreate     uint64        `bson:"msg_create" json:"msg_create"`
-	GmtCreate     int64         `bson:"gmt_create" json:"gmt_create"`
-	GmtModified   int64         `bson:"gmt_modified" json:"gmt_modified"`
+	Message       types.Message   `bson:"message" json:"message"`
+	Cid           string          `bson:"cid" json:"cid"`
+	BlockCid      string          `bson:"block_cid" json:"block_cid"` //暂时停用 zfl
+	ActorName     string          `bson:"actor_name" json:"actor_name"`
+	MethodName    string          `bson:"method_name" json:"method_name"`
+	ExitCode      string          `bson:"exit_code" json:"exit_code"` //默认值 不应为 0
+	Return        string          `bson:"return" json:"return"`
+	GasUsed       string          `bson:"gas_used" json:"gas_used"`
+	RequiredFunds types.BigInt    `bson:"required_funds" json:"required_funds"`
+	Size          int64           `bson:"size" json:"size"`
+	Height        uint64          `bson:"height" json:"height"`
+	MsgCreate     uint64          `bson:"msg_create" json:"msg_create"`
+	GmtCreate     int64           `bson:"gmt_create" json:"gmt_create"`
+	GmtModified   int64           `bson:"gmt_modified" json:"gmt_modified"`
+	Signature     types.Signature `bson:"signature" json:"signature"`
 }
 
 type FilscanMsgResult struct {
@@ -46,6 +47,12 @@ type FilscanMsgResult struct {
 	MsgCreate     uint64               `bson:"msg_create" json:"msg_create"`
 	GmtCreate     int64                `bson:"gmt_create" json:"gmt_create"`
 	GmtModified   int64                `bson:"gmt_modified" json:"gmt_modified"`
+	Signature     MsgSignature         `bson:"signature" json:"signature"`
+}
+
+type MsgSignature struct {
+	Type string `bson:"Type" json:"Type"`
+	Data string `bson:"Data" json:"Data"`
 }
 
 type FilscanResMsgMessage struct {
@@ -157,8 +164,18 @@ func GetMsgByMsgCidSliMethodLimit(msgCid []string, method string, begindex, coun
 func GetMsgByBlockMethodNameLimit(block string, methodName string, begindex, count int) (res []*FilscanMsgResult, total int, err error) {
 	q := bson.M{}
 	//q := bson.M{"msg_create":bson.M{"$gt":TimeNow - 60*60*24 *7}}
-	if len(block) != 0 { //search part
-		q["block_cid"] = block
+	if len(block) != 0 { //search part 如果要求block  则就去block查找所有msg cid
+		FilscanBlock, err := GetBlockByCid([]string{block})
+		if err != nil {
+			return nil, 0, err
+		}
+		var msgCids []string
+		if !(len(FilscanBlock) < 1 || len(FilscanBlock[0].MsgCids) < 1) {
+			for _, msg := range FilscanBlock[0].MsgCids {
+				msgCids = append(msgCids, msg.Str)
+			}
+		}
+		q["cid"] = bson.M{"$in": msgCids}
 	} else {
 		q["msg_create"] = bson.M{"$gt": TimeNow - 60*60*24*7}
 	}

@@ -85,6 +85,30 @@ func (self *Block_message) fs_messages() []*models.FilscanMsg {
 		}
 		fs_msg_list = append(fs_msg_list, fs_msg)
 	}
+	for _, secp := range self.BlkMsgs.SecpkMessages {
+		data, _ := secp.Message.Serialize()
+		fs_msg := &models.FilscanMsg{
+			Message:       secp.Message,
+			Cid:           secp.Cid().String(),
+			BlockCid:      self.Block.Cid().String(),
+			RequiredFunds: secp.Message.RequiredFunds(),
+			Size:          int64(len(data)),
+			Height:        self.Block.Height,
+			MsgCreate:     self.Block.Timestamp,
+			GmtCreate:     now,
+			GmtModified:   now,
+			Signature:     secp.Signature}
+
+		if secp.Message.Method == 0 {
+			fs_msg.MethodName = "Transfer"
+		} else {
+			if actor, method, err := ParseActorMessage(&secp.Message); err == nil {
+				fs_msg.ActorName = actor.Name
+				fs_msg.MethodName = method.Name
+			}
+		}
+		fs_msg_list = append(fs_msg_list, fs_msg)
+	}
 	return fs_msg_list
 }
 

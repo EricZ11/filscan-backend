@@ -17,7 +17,7 @@ require (
 	github.com/ipfs/go-cid v0.0.4
 	github.com/ipfs/go-ipfs-blockstore v0.1.1
 	github.com/ipfs/go-log v1.0.1
-	github.com/libp2p/go-libp2p-core v0.2.4
+	github.com/libp2p/go-libp2p-core v0.3.0
 	github.com/savaki/geoip2 v0.0.0-20150727150920-9968b08fbf39
 	github.com/shiena/ansicolor v0.0.0-20151119151921-a422bbe96644 // indirect
 	github.com/whyrusleeping/cbor-gen v0.0.0-20200121162646-b63bacf5eaf8

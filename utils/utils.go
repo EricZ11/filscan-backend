@@ -23,6 +23,9 @@ func ToFil(v *big.Int) float64 {
 }
 
 func ToFilStr(v *big.Int) string {
+	if v == nil {
+		return ""
+	}
 	value := ToFil(v)
 	return fmt.Sprintf("%.4f", value)
 }

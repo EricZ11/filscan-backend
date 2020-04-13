@@ -6,6 +6,7 @@ import (
 	"filscan_lotus/utils"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/ipfs/go-cid"
 	"strings"
 	"time"
 )
@@ -552,9 +553,10 @@ func TestUpsertAccount() {
 
 }
 // */
+
 func init() {
 	go func() {
-		time.Sleep(11 * time.Second)
+		//time.Sleep(11 * time.Second)
 		//GetStateListMiners()
 		//GetStateListActors()
 		//GetWalletActor()
@@ -564,10 +566,21 @@ func init() {
 		//GetNetPeers()
 		//SavePeers()
 		//GetParentMsgReceipts()
-		var a int64
-		UpdateAccountInfo(&a)
+		//var a int64
+		//UpdateAccountInfo(&a)
+		//GetBlockMsgTest()
 	}()
 }
+
+func GetBlockMsgTest() {
+	c, _ := cid.Decode("bafy2bzaceamz3qggtumnbqkgyldhga54y3zakvrt2deuedwkz7fk5nrsmasrs")
+	blockmsgs, err := LotusApi.ChainGetBlockMessages(context.TODO(), c)
+	if err != nil {
+		return
+	}
+	log("%v", blockmsgs)
+}
+
 func UpdateAccountInfo(startTime *int64) error {
 	accountMap := make(map[string]string)
 	fromArr, err := models.GetDistinctFromAddressByTime(*startTime, models.TimeNow)
@@ -742,5 +755,8 @@ func GetLotusHead() (tipset *types.TipSet, err error) {
 
 func GetPledgeCollateral(tipset *types.TipSet) (string, error) {
 	bigInt, err := LotusApi.StatePledgeCollateral(context.TODO(), tipset)
+	if err != nil {
+		return "", err
+	}
 	return types.FIL(bigInt).String(), err
 }

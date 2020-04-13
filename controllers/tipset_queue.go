@@ -21,9 +21,9 @@ import (
 type TipSetQueue interface {
 	UpdatePush(e models.Element) //向队列中添加元素
 	Poll() models.Element        //移除队列中最前面的元素
-	Clear() bool          //清空队列
-	Size() int            //获取队列的元素个数
-	IsEmpty() bool        //判断队列是否是空
+	Clear() bool                 //清空队列
+	Size() int                   //获取队列的元素个数
+	IsEmpty() bool               //判断队列是否是空
 	Have() int
 	AllElement() []models.Element
 }
@@ -77,6 +77,7 @@ func (entry *SliceEntry) UpdatePush(e *models.Element, parentHeight uint64) bool
 			return entry.element[i].Tipset.Height() < entry.element[j].Tipset.Height()
 		})
 	}
+
 	for i := 1; e.Tipset.Height()-uint64(i) > parentHeight; i++ { //分叉链:父节点 与当前节点 之前跳高
 		entry.DelTipsetByHeight(e.Tipset.Height() - uint64(i))
 	}
@@ -190,7 +191,7 @@ func (entry *SliceEntry) Have(e *models.Element) int {
 	return -1
 }
 
-func (entry *SliceEntry)AllElement() []*models.Element {
+func (entry *SliceEntry) AllElement() []*models.Element {
 	//if !entry.isLock {
 	//	entry.isLock = true
 	//	defer entry.Unlock()

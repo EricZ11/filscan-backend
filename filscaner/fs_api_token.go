@@ -9,7 +9,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
-	"gitlab.forceup.in/dev-proto/common"
+	"github.com/ipfs-force-community/common"
 	"math/big"
 	"time"
 )

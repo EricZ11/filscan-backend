@@ -1,52 +1,69 @@
+# Overview
 
-# Filscan_Lotus - LotusExplorer
+Filscan is a blockchain browser for Filecoin, which can be used to view Filecoin blockchain data, including querying addresses, messages information, block heights, miner information, token information, etc.
 
-## 运行
-#### 环境：
-golang >= v1.13
+# Table of Contents
+- [Overview](#overview)
+- [Table of Contents](#table-of-contents)
+- [Front-End](#front-end)
+- [Back-End](#back-end)
+  - [Build and Install](#build-and-install)
+    - [Environment](#environment)
+    - [System Require](#system-require)
+    - [Build](#build)
+    - [Configuration](#configuration)
+    - [Run](#run)
+  - [API Document](#api-document)
 
-mongo >= v4.2
+# [Front-End](https://github.com/ipfs-force-community/filscan-frontend)
 
-系统环境 linux 或 mac 暂不支持windows
 
-一个运行完备的lotus节点
+# Back-End
 
-以及编译lotus需要的其他依赖
+## Build and Install
 
-```cassandraql
+### Environment
+
+- golang >= v1.13
+- mongo >= v4.2
+- lotus >= v0.2.7
+
+### System Require
+
+- Linux or Mac OS
+
+### Build
+```
 git clone (githuburl)
+
 cd Backend
+
 make build-lotus
-go build 
+
+go build
 ```
-此时应生成 filscan_lotus 可执行文件
+### Configuration
 
-#### 配置
-
-打开 conf下app.conf文件
-```cassandraql
+Edit app.conf in path /conf and set the correct parameter
+```
 mongoHost = "127.0.0.1:27017"
+
 mongoUser = "root"
+
 mongoPass = "admin"
-mongoDB   = "filscan"
-lotusGetWay="192.168.1.111:1234"
+
+mongoDB   = "filscan"
+
+lotusGetWay="192.168.1.1:1234"
 ```
-配置mongo服务，以及lotus节点IP(注意:lotus节点1234端口默认不对外开放需自行配置)
+### Run
 
-#### 运行
-
-运行目录结构
-```cassandraql
-|-- conf
-   |-- app.conf
-|-- filscan_lotus
-
+Make sure mongo and lotus is active, and run the filscan_lotus
 ```
-运行指令
-```cassandraql
 ./filscan_lotus
-``` 
+```
+The application will check lotus and mongo’s status. The application will stop if got any error from them. If application start success, it will work until sync all data down from lotus. 
 
-运行启动将会检查mondo以及lotus连通性。连接失败系统将终止启动。
+## API Document
 
-若检测成功系统将正常启动，第一启动需要同步链上数据，请耐心等待。
+Check document [here](Filscan_Interface_v1.0.md)
